@@ -103,7 +103,7 @@ def get_filein(varname, date_curr):
 #----------------------------------------------------------------------
 def get_fileout(varname, date_curr):
 
-  F"unmasked_ERA5_AIRS_V6_L2_H2O_daily_average.20080220.PM_05"
+  # F"unmasked_ERA5_AIRS_V6_L2_H2O_daily_average.20080220.PM_05"
 
   return (
     F"unmasked_ERA5_{instrument}_{varname}.{date_curr:%Y%m%d}.{ampm}_{fileversion}"
@@ -123,6 +123,80 @@ def read_netcdf(filename):
 
   with Dataset(filename, "r", format="NETCDF4") as f_in:
     print(f_in.data_model)
+    print(f_in.dimensions)
+
+    for obj in f_in.dimensions.values():
+      print(obj)
+
+    for obj in f_in.variables.values():
+      print(obj)
+
+    nc_time = f_in.variables["time"]
+    nc_lon  = f_in.variables["longitude"]
+
+    print(nc_lon[:])
+
+    if not print(np.ma.getmask(nc_lon)): # si pas de miss_val
+      lon = [l if l <= 180 else l-360 for l in nc_lon[:]]
+    else:
+      exit("Missing values in lon")
+
+    # print(lon)
+
+    print(univ_time)
+
+    # print(type(nc_lon[0]), nc_lon.dtype)
+    # print(type(lon[0]))
+
+    # print(np.ma.getmaskarray(nc_lon))
+
+    print(80*"-")
+    # for idx in range(nc_lon.size):
+    for idx in range(0, nc_lon.size, 60):
+      print(
+        F"idx: {idx} lon: {lon[idx]} - {lt_instru}")
+
+      # time = dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(nc_time[idx]))
+      # print(F"t: {nc_time[idx]} / {time}")
+
+      local_time = univ_time + lon[idx]/15.
+      # print("loc: ", local_time[24])
+
+      deltaT = abs(local_time - lt_instru)
+      print(local_time)
+      print(10*"-")
+      print(deltaT)
+      print(10*"-")
+      # print(deltaT.dtype)
+      # # deltaT_sorted = deltaT.sort(axis=0)
+      # print(sorted(deltaT))
+
+      print(
+        F" - min val: {np.amin(deltaT)}"
+        F" - min arg: {np.argmin(deltaT)}"
+      )
+
+      # print(np.argsort(deltaT))
+      print(
+        F"min: "
+        F"{deltaT[np.argsort(deltaT)[0]]} ; "
+        F"{deltaT[np.argsort(deltaT)[1]]}"
+      )
+      somme = deltaT[np.argsort(deltaT)[0]] + deltaT[np.argsort(deltaT)[1]]
+      print(
+        F"sum: {somme}"
+      )
+
+      if somme < 0.99 or somme > 1.01:
+        print(80*"!")
+
+      imin = np.argmin(deltaT)
+
+      print(deltaT[imin-1:imin+2])
+      print(80*"-")
+
+      # dt.datetime(1800, 1, 1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None, *, fold=0) + dt.timedelta(hours=nc_time[idx])
+
 
 
 #######################################################################
@@ -166,7 +240,7 @@ if __name__ == "__main__":
       lt_instru = 9.5
       ampm = "AM"
     else:
-      lt_instru = 21.5
+      lt_instru = 23.5
       ampm = "PM"
 
   fileversion = "05"
@@ -183,8 +257,14 @@ if __name__ == "__main__":
 
   # ... Files and directories ...
   # -----------------------------
+
+  project_dir = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+  )
   dirin_bdd = os.path.normpath(
-    "/home_local/slipsl/GEWEX/input"
+    os.path.join(project_dir, "input")
+    # "/home_local/slipsl/GEWEX/input"
+    # "/home_local/slipsl/GEWEX/input"
     # "/bdd/ERA5/NETCDF/GLOBAL_025/hourly"
   )
   dirin_pl = os.path.join(dirin_bdd, "AN_PL")
@@ -201,6 +281,8 @@ if __name__ == "__main__":
 
   # .. Main program ..
   # ==================
+
+  univ_time = [i-24+0.5 for i in range(72)]
 
   date_curr = args.date_start
 
