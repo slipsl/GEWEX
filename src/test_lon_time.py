@@ -16,7 +16,9 @@ from __future__ import print_function, unicode_literals, division
 # ========================
 import os
 import datetime as dt
+# from cftime import num2date, date2num
 import pprint
+
 
 import numpy as np
 import pandas as pd
@@ -117,16 +119,53 @@ def get_fileout(varname, date_curr):
 
 
 #----------------------------------------------------------------------
+def lon_time(lon, lt_instru):
+
+  l = lon
+  if lon > 180.:
+    l = lon - 360.
+  l = l / 15.
+
+  # univT = [i - 24. + 0.5 for i in range(72)]
+  univT = [i - 24. for i in range(72)]
+  # print(univT)
+  localT = [i + l for i in univT]
+  # print(localT)
+  deltaT = [abs(i - lt_instru) for i in localT]
+  # print(deltaT)
+
+
+  print(
+    " TU     TL     dT      "
+    " TU     TL     dT      "
+    " TU     TL     dT"
+  )
+  for i in range(24):
+    print(
+      F"{univT[i]:6.2f} {localT[i]:6.2f} {deltaT[i]:6.2f}   "
+      F"{univT[i+24]:6.2f} {localT[i+24]:6.2f} {deltaT[i+24]:6.2f}   "
+      F"{univT[i+48]:6.2f} {localT[i+48]:6.2f} {deltaT[i+48]:6.2f}   "
+    )
+
+
+  (imin1, imin2) = np.argsort(deltaT)[0:2]
+
+  w1 = deltaT[imin1] / (deltaT[imin1] + deltaT[imin2])
+  w2 = deltaT[imin2] / (deltaT[imin1] + deltaT[imin2])
+
+  return (imin1, imin2, w1, w2)
+
+#----------------------------------------------------------------------
 def read_netcdf(filename):
 
   print(F"Reading {filename}\n"+80*"=")
 
   with Dataset(filename, "r", format="NETCDF4") as f_in:
-    print(f_in.data_model)
-    print(f_in.dimensions)
+    # print(f_in.data_model)
+    # print(f_in.dimensions)
 
-    for obj in f_in.dimensions.values():
-      print(obj)
+    # for obj in f_in.dimensions.values():
+    #   print(obj)
 
     for obj in f_in.variables.values():
       print(obj)
@@ -134,70 +173,54 @@ def read_netcdf(filename):
     nc_time = f_in.variables["time"]
     nc_lon  = f_in.variables["longitude"]
 
-    print(nc_lon[:])
+    offsets = [
+      (date_curr.day - i) * 24 for i in [2, 1, 0]
+    ]
+    print(offsets)
+    nb_steps = 24
 
-    if not print(np.ma.getmask(nc_lon)): # si pas de miss_val
-      lon = [l if l <= 180 else l-360 for l in nc_lon[:]]
-    else:
-      exit("Missing values in lon")
+    times = []
+    for o in offsets:
+      times.extend(nc_time[o:o+nb_steps])
+    for t in times:
+      print(dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(t)))
+      # num2date(times[:],units=times.units,calendar=times.calendar)
 
-    # print(lon)
+    # for time in nc_time:
+    #   print(
+    #     dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(time))
+    #   )
 
-    print(univ_time)
-
-    # print(type(nc_lon[0]), nc_lon.dtype)
-    # print(type(lon[0]))
-
-    # print(np.ma.getmaskarray(nc_lon))
+    lt_instru = 13.5
+    offset = (date_curr.day - 1) * 24
 
     print(80*"-")
-    # for idx in range(nc_lon.size):
-    for idx in range(0, nc_lon.size, 60):
-      print(
-        F"idx: {idx} lon: {lon[idx]} - {lt_instru}")
+    for lon in nc_lon[::180]:
+      idx_t1, idx_t2, w_t1, w_t2 = lon_time(lon, lt_instru)
 
-      # time = dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(nc_time[idx]))
-      # print(F"t: {nc_time[idx]} / {time}")
-
-      local_time = univ_time + lon[idx]/15.
-      # print("loc: ", local_time[24])
-
-      deltaT = abs(local_time - lt_instru)
-      print(local_time)
-      print(10*"-")
-      print(deltaT)
-      print(10*"-")
-      # print(deltaT.dtype)
-      # # deltaT_sorted = deltaT.sort(axis=0)
-      # print(sorted(deltaT))
+      tl = date_curr + dt.timedelta(hours=lon/15.)
+      t_instru = date_curr + dt.timedelta(hours=lt_instru)
+      t_cible = t_instru - dt.timedelta(hours=lon/15.)
 
       print(
-        F" - min val: {np.amin(deltaT)}"
-        F" - min arg: {np.argmin(deltaT)}"
+        F"lon: {lon} => "
+        F"tl = {tl}, "
+        # F"tu = {lt_instru - lon/15.} "
+        F"tu = {t_cible} "
+        F"(lt_instru = {lt_instru})"
       )
 
-      # print(np.argsort(deltaT))
+      t_ori = dt.datetime(1800, 1, 1)
+      t1 = t_ori + dt.timedelta(hours=float(times[idx_t1]))
+      t2 = t_ori + dt.timedelta(hours=float(times[idx_t2]))
+      # t1 = t_ori + dt.timedelta(hours=float(times[idx_t1 + offset]))
+      # t2 = t_ori + dt.timedelta(hours=float(times[idx_t2 + offset]))
+
       print(
-        F"min: "
-        F"{deltaT[np.argsort(deltaT)[0]]} ; "
-        F"{deltaT[np.argsort(deltaT)[1]]}"
+        F" - t1: {t1:%b %d %Hh} - Weight: {w_t1}\n"
+        F" - t2: {t2:%b %d %Hh} - Weight: {w_t2}"
       )
-      somme = deltaT[np.argsort(deltaT)[0]] + deltaT[np.argsort(deltaT)[1]]
-      print(
-        F"sum: {somme}"
-      )
-
-      if somme < 0.99 or somme > 1.01:
-        print(80*"!")
-
-      imin = np.argmin(deltaT)
-
-      print(deltaT[imin-1:imin+2])
       print(80*"-")
-
-      # dt.datetime(1800, 1, 1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None, *, fold=0) + dt.timedelta(hours=nc_time[idx])
-
-
 
 #######################################################################
 
@@ -282,7 +305,7 @@ if __name__ == "__main__":
   # .. Main program ..
   # ==================
 
-  univ_time = [i-24+0.5 for i in range(72)]
+  univT = [i-24+0.5 for i in range(72)]
 
   date_curr = args.date_start
 
