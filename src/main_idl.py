@@ -14,6 +14,7 @@ from __future__ import print_function, unicode_literals, division
 
 # Standard library imports
 # ========================
+import psutil
 import os
 import datetime as dt
 # from cftime import num2date, date2num
@@ -26,6 +27,10 @@ from fortio import FortranFile
 from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
+
+# Standard library imports
+# ========================
+# from subroutines import *
 
 
 #######################################################################
@@ -76,6 +81,12 @@ def get_arguments():
 def num2date(val):
 
   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
+
+
+# #----------------------------------------------------------------------
+# def date2num(val):
+
+#   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
 
 
 #----------------------------------------------------------------------
@@ -183,8 +194,6 @@ def get_variable(varname, date_curr):
   )
   print(varvalues.dtype)
 
-
-
     # offsets = [
     #   (date_curr.day - i) * 24 for i in [2, 1, 0]
     # ]
@@ -194,6 +203,13 @@ def get_variable(varname, date_curr):
     # times = []
     # for o in offsets:
     #   times.extend(nc_time[o:o+nb_steps])
+
+
+#----------------------------------------------------------------------
+def def_time_lon():
+
+  univT = [i - 24. + 0.5 for i in range(72)]
+  read_netcdf(filename, "longitude", offset=None, nb_steps=None)
 
 
 #----------------------------------------------------------------------
@@ -211,7 +227,6 @@ def lon_time(lon, lt_instru):
   # print(localT)
   deltaT = [abs(i - lt_instru) for i in localT]
   # print(deltaT)
-
 
   print(
     " TU     TL     dT      "
@@ -251,9 +266,10 @@ def read_var_info(filename, varname):
     )
 
 #----------------------------------------------------------------------
-def read_netcdf(filename, varname, offset, nb_steps):
+def read_netcdf(filename, varname, offset=None, nb_steps=None):
 
   print(F"Reading {filename}\n"+80*"=")
+
 
   # varname = "time"
   with Dataset(filename, "r", format="NETCDF4") as f_in:
@@ -329,11 +345,144 @@ def read_netcdf(filename, varname, offset, nb_steps):
     return [1, 2, 3]
 
 
+#----------------------------------------------------------------------
+def read_ERA5_netcdf(date_curr, lt_instru, varname):
+
+  date_prev = date_curr - dt.timedelta(days=1)
+  date_next = date_curr + dt.timedelta(days=1)
+
+  file_prev = None
+  file_curr = get_filein(varname, date_curr)
+  file_next = None
+
+  if date_prev.month < date_curr.month:
+    file_prev = get_filein(varname, date_prev)
+    # off_prev = (date_prev.day - 1) * 24
+
+  if date_next.month > date_curr.month:
+    file_next = get_filein(varname, date_next)
+    # off_next = (date_next.day - 1) * 24
+
+  for filename in [file_prev, file_curr, file_next]:
+    if filename and not os.path.isfile(filename):
+        print(F"Input file missing: {filename}")
+        return None
+
+  off_prev = (date_prev.day - 1) * 24
+  off_curr = (date_curr.day - 1) * 24
+  off_next = (date_next.day - 1) * 24
+
+  # Longitudes => timesteps
+  print(
+    F"Reading {os.path.basename(file_curr)} "
+    F"to process t = f(lon)\n"+80*"="
+  )
+  with Dataset(file_curr, "r", format="NETCDF4") as f_in:
+    print(len(f_in.dimensions))
+    dims = f_in.variables[varname].dimensions
+    ndim = f_in.variables[varname].ndim
+    nc_lat  = f_in.variables["latitude"][:]
+    nc_lon  = f_in.variables["longitude"][:]
+    if "level" in dims:
+      nc_lev  = f_in.variables["level"][:]
+    else:
+      nc_lev = None
+
+    # nc_time = f_in.variables["time"][:]
+    # nlat = nc_lat.size
+    nlon = nc_lon.size
+
+  # To get -180. < lon < +180.
+  cond = nc_lon[:] > 180.
+  nc_lon[cond] = nc_lon[cond] - 360.
+
+  idx_lon_l = np.empty([nlon, ], dtype=int)
+  idx_lon_r = np.empty([nlon, ], dtype=int)
+  weight_l  = np.empty([nlon, ], dtype=float)
+  weight_r  = np.empty([nlon, ], dtype=float)
+
+  # Three days worth of timesteps (ts = 1 hour)
+  # univT = [i - 24. + 0.5 for i in range(72)]
+
+  for idx, lon in enumerate(nc_lon):
+    # print(lon)
+
+    # localT = univT + lon / 15.
+    # deltaT = abs(localT - lt_instru)
+    deltaT = [abs((i - 24.+0.5 + lon/15.) - lt_instru) for i in range(72)]
+
+    (imin1, imin2) = np.argsort(deltaT)[0:2]
+
+    w1 = deltaT[imin1] / (deltaT[imin1] + deltaT[imin2])
+    w2 = deltaT[imin2] / (deltaT[imin1] + deltaT[imin2])
+
+    idx_lon_l[idx] = imin1
+    idx_lon_r[idx] = imin2
+    weight_l[idx]  = w1
+    weight_r[idx]  = w2
+
+
+
+  if "level" in dims:
+    print("loop over levels")
+    for idx_pl, pl in enumerate(nc_lev):
+      print(idx_pl, pl)
+
+
+
+
+  with Dataset(file_curr, "r", format="NETCDF4") as f_in:
+    # nc_var = f_in.variables[varname][off_curr:off_curr+24, :, :, :]
+    nc_var = f_in.variables[varname]
+    ndim = f_in.variables[varname].ndim
+    dims = f_in.variables[varname].dimensions
+    shape = f_in.variables[varname].shape
+
+    if "level" in dims:
+      print(dims.index("level"))
+    if "time" in dims:
+      print(dims.index("time"))
+
+    var_slice = []
+    for dim, length in zip(dims, shape):
+      print(dim, length)
+      if dim == "time":
+        var_slice.append(slice(off_curr, off_curr + 24))
+      elif dim == "level":
+        var_slice.append(slice(0, 1))
+      else:
+        var_slice.append(slice(length))
+    pp.pprint(var_slice)
+
+    var_values = f_in.variables[varname][var_slice]
+
+    print(ndim, dims, shape)
+
+    print(
+      var_values.shape,
+      np.squeeze(var_values).shape, 
+      type(var_values),
+    )
+
+
 #######################################################################
 
 if __name__ == "__main__":
 
   run_deb = dt.datetime.now()
+
+  # gives a single float value
+  print(psutil.cpu_percent())
+  # gives an object with many fields
+  print(psutil.virtual_memory())
+  # you can convert that object to a dictionary 
+  print(dict(psutil.virtual_memory()._asdict()))
+  # you can have the percentage of used RAM
+  print(psutil.virtual_memory().percent)
+  # you can calculate percentage of available memory
+  print(psutil.virtual_memory().available * 100 / psutil.virtual_memory().total)
+
+
 
   # .. Initialization ..
   # ====================
@@ -450,28 +599,37 @@ if __name__ == "__main__":
 
     fg_process = True
 
-    # Define file names
-    print(date_curr.year, date_curr.month)
-    pathout = os.path.join(
-      dirout,
-      F"{date_curr:%Y}",
-      F"{date_curr:%m}",
-    )
-    for var in outstr.values():
-      print(get_fileout(var, date_curr))
-      filepath = os.path.join(pathout, get_fileout(var, date_curr))
-      print(filepath)
-      # Check if output exists
-      if os.path.isfile(filepath):
-        print(F"Output file exists. Please remove it and relaunch\n  {filepath}")
+    read_ERA5_netcdf(date_curr, lt_instru, "ta")
+
+    print(psutil.virtual_memory().percent)
+
+
+    # # Define file names
+    # print(date_curr.year, date_curr.month)
+    # pathout = os.path.join(
+    #   dirout,
+    #   F"{date_curr:%Y}",
+    #   F"{date_curr:%m}",
+    # )
+    # for var in outstr.values():
+    #   print(get_fileout(var, date_curr))
+    #   filepath = os.path.join(pathout, get_fileout(var, date_curr))
+    #   print(filepath)
+    #   # Check if output exists
+    #   if os.path.isfile(filepath):
+    #     print(F"Output file exists. Please remove it and relaunch\n  {filepath}")
+    #     fg_process = False
+
+    # def_time_lon()
+
 
     # Read "ta" (temperature, 3D)
     # varname = "ta"
     # variable = get_variable(varname, date_curr)
 
     # Read "skt" (surface temperature, 2D)
-    varname = "skt"
-    variable = get_variable(varname, date_curr)
+    # varname = "skt"
+    # variable = get_variable(varname, date_curr)
 
     # Read "sp" (surface pressure, 2D)
 
