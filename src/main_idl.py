@@ -78,6 +78,23 @@ def get_arguments():
 
 
 #----------------------------------------------------------------------
+def freemem():
+
+  # you can calculate percentage of available memory
+  print(
+    F"Free memory = "
+    F"{psutil.virtual_memory().available * 100 / psutil.virtual_memory().total:6.2f}"
+    F"%"
+  )
+
+
+# #----------------------------------------------------------------------
+# def date2num(val):
+
+#   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
+
+
+#----------------------------------------------------------------------
 def num2date(val):
 
   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
@@ -265,84 +282,35 @@ def read_var_info(filename, varname):
       varout.dtype,
     )
 
+
 #----------------------------------------------------------------------
-def read_netcdf(filename, varname, offset=None, nb_steps=None):
+def def_slice(
+  cnt_tim,   cnt_lat,   cnt_lon,   cnt_lev=0,
+  off_tim=0, off_lat=0, off_lon=0, off_lev=0,
+  stp_tim=None, stp_lat=None, stp_lon=None, stp_lev=None,
+):
 
-  print(F"Reading {filename}\n"+80*"=")
+  if cnt_lev:
+    ret = [
+      slice(off_tim, off_tim + cnt_tim, stp_tim),
+      slice(off_lev, off_lev + cnt_lev, stp_lev),
+      slice(off_lat, off_lat + cnt_lat, stp_lat),
+      slice(off_lon, off_lon + cnt_lon, stp_lon),
+    ]
+  else:
+    ret = [
+      slice(off_tim, off_tim + cnt_tim, stp_tim),
+      slice(off_lat, off_lat + cnt_lat, stp_lat),
+      slice(off_lon, off_lon + cnt_lon, stp_lon),
+    ]
 
-
-  # varname = "time"
-  with Dataset(filename, "r", format="NETCDF4") as f_in:
-
-    varout = f_in.variables[varname]
-
-    # return varout[offset:offset+nb_steps]
-
-
-    print(f_in.data_model)
-    print(f_in.dimensions)
-
-    # for obj in f_in.dimensions.values():
-    #   print(obj)
-
-    for obj in f_in.variables.values():
-      print(obj)
-
-    print(f_in.variables[varname][:,:,offset:offset+nb_steps])
-    # nc_time = f_in.variables["time"]
-    # nc_lon  = f_in.variables["longitude"]
-
-    # offsets = [
-    #   (date_curr.day - i) * 24 for i in [2, 1, 0]
-    # ]
-    # print(offsets)
-    # nb_steps = 24
-
-    # times = []
-    # for o in offsets:
-    #   times.extend(nc_time[o:o+nb_steps])
-    # for t in times:
-    #   print(dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(t)))
-    #   # num2date(times[:],units=times.units,calendar=times.calendar)
-
-    # # for time in nc_time:
-    # #   print(
-    # #     dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(time))
-    # #   )
-
-    # lt_instru = 13.5
-    # offset = (date_curr.day - 1) * 24
-
-    # print(80*"-")
-    # for lon in nc_lon[::180]:
-    #   idx_t1, idx_t2, w_t1, w_t2 = lon_time(lon, lt_instru)
-
-    #   tl = date_curr + dt.timedelta(hours=lon/15.)
-    #   t_instru = date_curr + dt.timedelta(hours=lt_instru)
-    #   t_cible = t_instru - dt.timedelta(hours=lon/15.)
-
-    #   print(
-    #     F"lon: {lon} => "
-    #     F"tl = {tl}, "
-    #     # F"tu = {lt_instru - lon/15.} "
-    #     F"tu = {t_cible} "
-    #     F"(lt_instru = {lt_instru})"
-    #   )
-
-    #   t_ori = dt.datetime(1800, 1, 1)
-    #   t1 = t_ori + dt.timedelta(hours=float(times[idx_t1]))
-    #   t2 = t_ori + dt.timedelta(hours=float(times[idx_t2]))
-    #   # t1 = t_ori + dt.timedelta(hours=float(times[idx_t1 + offset]))
-    #   # t2 = t_ori + dt.timedelta(hours=float(times[idx_t2 + offset]))
-
-    #   print(
-    #     F" - t1: {t1:%b %d %Hh} - Weight: {w_t1}\n"
-    #     F" - t2: {t2:%b %d %Hh} - Weight: {w_t2}"
-    #   )
-    #   print(80*"-")
+  return ret
 
 
-    return [1, 2, 3]
+#----------------------------------------------------------------------
+def read_netcdf(fileid, varname, var_slice):
+
+  return np.squeeze(fileid.variables[varname][var_slice])
 
 
 #----------------------------------------------------------------------
@@ -368,28 +336,32 @@ def read_ERA5_netcdf(date_curr, lt_instru, varname):
         print(F"Input file missing: {filename}")
         return None
 
-  off_prev = (date_prev.day - 1) * 24
-  off_curr = (date_curr.day - 1) * 24
-  off_next = (date_next.day - 1) * 24
+  off_prev, cnt_prev = (date_prev.day - 1) * 24, 24
+  off_curr, cnt_curr = (date_curr.day - 1) * 24, 24
+  off_next, cnt_next = (date_next.day - 1) * 24, 24
 
   # Longitudes => timesteps
   print(
-    F"Reading {os.path.basename(file_curr)} "
-    F"to process t = f(lon)\n"+80*"="
+    F"{80*'='}\n"
+    F"Reading {os.path.basename(file_curr)} to process t = f(lon)"
+    F"\n{80*'-'}"
   )
   with Dataset(file_curr, "r", format="NETCDF4") as f_in:
     print(len(f_in.dimensions))
-    dims = f_in.variables[varname].dimensions
-    ndim = f_in.variables[varname].ndim
-    nc_lat  = f_in.variables["latitude"][:]
-    nc_lon  = f_in.variables["longitude"][:]
+    dims   = f_in.variables[varname].dimensions
+    ndim   = f_in.variables[varname].ndim
+    nc_lat = f_in.variables["latitude"][:]
+    nc_lon = f_in.variables["longitude"][:]
     if "level" in dims:
-      nc_lev  = f_in.variables["level"][:]
+      nc_lev = f_in.variables["level"][:]
+      nlev = nc_lev.size
     else:
-      nc_lev = None
+      nc_lev = [None, ]
+      nlev = 1
 
     # nc_time = f_in.variables["time"][:]
-    # nlat = nc_lat.size
+    ntim = f_in.variables["time"].size
+    nlat = nc_lat.size
     nlon = nc_lon.size
 
   # To get -180. < lon < +180.
@@ -422,47 +394,140 @@ def read_ERA5_netcdf(date_curr, lt_instru, varname):
     weight_r[idx]  = w2
 
 
+  fcurr_in = Dataset(file_curr, "r", format="NETCDF4")
+  if file_prev:
+    fprev_in = Dataset(file_prev, "r", format="NETCDF4")
+  else:
+    fprev_in = None
+  if file_next:
+    fnext_in = Dataset(file_next, "r", format="NETCDF4")
+  else:
+    fnext_in = None
 
-  if "level" in dims:
-    print("loop over levels")
-    for idx_pl, pl in enumerate(nc_lev):
-      print(idx_pl, pl)
 
+  # if nc_lev:
+  # if "level" in dims:
+  # var_full = np.empty([nlev, nlat, nlon], dtype=float)
+  var_out = np.empty([nlev, nlat, nlon], dtype=float)
+  print("var_out: ", var_out.shape)
 
+  print("loop over levels")
+  for idx_pl, pl in enumerate(nc_lev):
+    # print(idx_pl, pl)
+    print(F"P({idx_pl}) = {pl}mbar")
 
+    if nlev > 1:
+      cnt_lev = 1
+      off_lev = idx_pl
+    else:
+      cnt_lev = 0
+      off_lev = 0
 
-  with Dataset(file_curr, "r", format="NETCDF4") as f_in:
-    # nc_var = f_in.variables[varname][off_curr:off_curr+24, :, :, :]
-    nc_var = f_in.variables[varname]
-    ndim = f_in.variables[varname].ndim
-    dims = f_in.variables[varname].dimensions
-    shape = f_in.variables[varname].shape
-
-    if "level" in dims:
-      print(dims.index("level"))
-    if "time" in dims:
-      print(dims.index("time"))
-
-    var_slice = []
-    for dim, length in zip(dims, shape):
-      print(dim, length)
-      if dim == "time":
-        var_slice.append(slice(off_curr, off_curr + 24))
-      elif dim == "level":
-        var_slice.append(slice(0, 1))
-      else:
-        var_slice.append(slice(length))
-    pp.pprint(var_slice)
-
-    var_values = f_in.variables[varname][var_slice]
-
-    print(ndim, dims, shape)
-
-    print(
-      var_values.shape,
-      np.squeeze(var_values).shape, 
-      type(var_values),
+    # print("File prev")
+    if fprev_in:
+      f_in = fprev_in
+    else:
+      f_in = fcurr_in
+    var_prev = read_netcdf(
+      f_in, varname, 
+      def_slice(
+        cnt_tim=cnt_prev, off_tim=off_prev,
+        cnt_lev=cnt_lev, off_lev=off_lev,
+        cnt_lat=nlat, cnt_lon=nlon,
+      )
     )
+    # print(var_prev.shape)
+
+    # print("File curr")  # time, level, lat, lon
+    var_curr = read_netcdf(
+      fcurr_in, varname, 
+      def_slice(
+        cnt_tim=cnt_curr, off_tim=off_curr,
+        cnt_lev=cnt_lev, off_lev=off_lev,
+        cnt_lat=nlat, cnt_lon=nlon,
+      )
+    )
+    # print(var_curr.shape)
+
+    # print("File next")
+    if fnext_in:
+      f_in = fnext_in
+    else:
+      f_in = fcurr_in
+    var_next = read_netcdf(
+      f_in, varname,
+      def_slice(
+        cnt_tim=cnt_next, off_tim=off_next,
+        cnt_lev=cnt_lev, off_lev=off_lev,
+        cnt_lat=nlat, cnt_lon=nlon,
+      )
+    )
+    # print(var_next.shape)
+
+    # freemem()
+
+    var_full = np.concatenate((var_prev, var_curr, var_next), axis = 0)
+    # print("var_full: ", var_full.shape)
+    # print("var_full: ", var_full[24, 360, 720])
+
+    # freemem()
+    # Delete intermediate variables to free some memory
+    del var_prev, var_curr, var_next
+    # freemem()
+
+    for idx_lon in range(nlon):
+      # var_full = [time, lat, lon]
+      var_out[idx_pl, :, idx_lon] = (
+        var_full[idx_lon_l[idx_lon], :, idx_lon] * weight_l[idx_lon] +
+        var_full[idx_lon_r[idx_lon], :, idx_lon] * weight_r[idx_lon]
+      )
+
+  # print(var_out[:, 360, 720])
+
+    # print("in : ", var_full[idx_lon_l[idx_lon], :, idx_lon].shape)
+    # print("out: ", var_out_pl.shape)
+
+
+  fcurr_in.close()
+  if fprev_in:
+    fprev_in.close()
+  if fnext_in:
+    fnext_in.close()
+
+  return np.squeeze(var_out)
+
+
+    # # nc_var = f_in.variables[varname][off_curr:off_curr+24, :, :, :]
+    # nc_var = f_in.variables[varname]
+    # ndim = f_in.variables[varname].ndim
+    # dims = f_in.variables[varname].dimensions
+    # shape = f_in.variables[varname].shape
+
+    # if "level" in dims:
+    #   print(dims.index("level"))
+    # if "time" in dims:
+    #   print(dims.index("time"))
+
+    # var_slice = []
+    # for dim, length in zip(dims, shape):
+    #   print(dim, length)
+    #   if dim == "time":
+    #     var_slice.append(slice(off_curr, off_curr + cnt_curr))
+    #   elif dim == "level":
+    #     var_slice.append(slice(0, 1))
+    #   else:
+    #     var_slice.append(slice(length))
+    # pp.pprint(var_slice)
+
+    # var_values = f_in.variables[varname][var_slice]
+
+    # print(ndim, dims, shape)
+
+    # print(
+    #   var_values.shape,
+    #   np.squeeze(var_values).shape, 
+    #   type(var_values),
+    # )
 
 
 #######################################################################
@@ -587,6 +652,19 @@ if __name__ == "__main__":
   # .. Main program ..
   # ==================
 
+  a = np.arange(6).reshape(2,3)
+  print(a)
+  print(a.shape)
+
+  it = np.nditer(a, flags=['f_index'])
+  for x in it:
+    print(F"{x} <{it.index}>")
+
+  it = np.nditer(a, flags=['multi_index'])
+  for x in it:
+    # print("%d <%s>" % (x, it.multi_index), end=' ')
+    print(F"{x} <{it.multi_index}>")
+
   date_curr = args.date_start
 
   while date_curr <= args.date_end:
@@ -599,9 +677,101 @@ if __name__ == "__main__":
 
     fg_process = True
 
-    read_ERA5_netcdf(date_curr, lt_instru, "ta")
+    freemem()
 
-    print(psutil.virtual_memory().percent)
+    Tpl = read_ERA5_netcdf(date_curr, lt_instru, "ta")
+    print(Tpl.shape)
+    print(
+      F"{Tpl.min():7.2f}K {Tpl.max():7.2f}K {Tpl.mean():7.2f}K"
+    )
+
+    freemem()
+
+    Tsurf = read_ERA5_netcdf(date_curr, lt_instru, "skt")
+    print(Tsurf.shape)
+    print(
+      F"{Tsurf.min():7.2f}K {Tsurf.max():7.2f}K {Tsurf.mean():7.2f}K"
+    )
+
+    freemem()
+
+    Psurf = read_ERA5_netcdf(date_curr, lt_instru, "sp")
+    print(Psurf.shape)
+    Psurf = Psurf / 100.
+
+    print(
+      F"{Psurf.min():7.2f}hPa {Psurf.max():7.2f}hPa {Psurf.mean():7.2f}hPa"
+    )
+
+    freemem()
+
+    # it = np.nditer(Tsurf, flags=["multi_index"])
+    # for x in it:
+    #   print((x, it.multi_index), end=' ')
+
+    nlat, nlon = Psurf.shape
+    print(nlat, nlon)
+
+    nlev = len(P_tigr)
+
+    nc_lev = [
+      1, 2, 3, 5, 7, 10, 20, 30, 50, 70, 100, 125, 150, 175, 200,
+      225, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
+      775, 800, 825, 850, 875, 900, 925, 950, 975, 1000,
+    ]
+
+    status = np.full([nlat, nlon], 90000, dtype=int)
+    T_tigr = np.zeros([nlev+2, nlat, nlon], dtype=float)
+    for idx_lat in range(nlat):
+      for idx_lon in range(nlon):
+        # T_tigr = np.empty([nlev+2], dtype=float)
+        # T_tigr = np.full([nlev+2], -1., dtype=float)
+        # T_tigr = np.full([nlev], -1., dtype=float)
+        # T_tigr = -1.
+        # print(type(T_tigr))
+        T_tigr[:nlev, idx_lat, idx_lon] = np.interp(P_tigr, nc_lev, Tpl[:, idx_lat, idx_lon])
+        cond = P_tigr > Psurf[idx_lat, idx_lon]
+        cond = np.append(cond, [True, True, ])
+        # print(cond)
+        T_tigr[cond] = Tsurf[idx_lat, idx_lon]
+        status[idx_lat, idx_lon] = 10000
+
+        if idx_lat % 60 == 0 and idx_lon % 120 == 0:
+          print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
+          # print(Tpl[:, idx_lat, idx_lon])
+          print("==>")
+          for T, P in zip(T_tigr[:, idx_lat, idx_lon], P_tigr):
+            print(F"T({P}) = {T:7.2f}", end=" ; ")
+          print(F"T(n+1) = {T_tigr[nlev, idx_lat, idx_lon]:7.2f}", end=" ; ")
+          print(F"T(n+2) = {T_tigr[nlev+1, idx_lat, idx_lon]:7.2f}")
+
+
+    print(
+      F"{T_tigr.min():7.2f}K {T_tigr.max():7.2f}K {T_tigr.mean():7.2f}K"
+    )
+
+
+
+
+        # T_tigr.extend(Tsurf[idx_lat, idx_lon], 0.)
+
+          # print(T_tigr)
+          # print(
+          #   [(x, y) for x, y in zip(Tpl[0:, idx_lat, idx_lon], Tpl[1:, idx_lat, idx_lon])]
+          # )
+          # print(
+          #   [x < y for x, y in zip(Tpl[0:, idx_lat, idx_lon], Tpl[1:, idx_lat, idx_lon])]
+          #   # all(x < y for x, y in zip(Tpl, Tpl[1:]))
+          #   # [x < y for x, y in zip(Tpl, Tpl[1:])].all()
+          # )
+
+
+        # if idx_lat % 60 == 0 and idx_lon % 60 == 0:
+        #   print(F"{idx_lat}/{idx_lon}: {cond}")
+
+    # cond = nc_lon[:] > 180.
+    # nc_lon[cond] = nc_lon[cond] - 360.
+
 
 
     # # Define file names
