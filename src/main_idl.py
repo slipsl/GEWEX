@@ -16,6 +16,7 @@ from __future__ import print_function, unicode_literals, division
 # ========================
 import psutil
 import os
+from pathlib import Path
 import datetime as dt
 # from cftime import num2date, date2num
 import pprint
@@ -23,7 +24,8 @@ import pprint
 
 import numpy as np
 import pandas as pd
-from fortio import FortranFile
+# from fortio import FortranFile
+from scipy.io import FortranFile
 from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
@@ -625,6 +627,10 @@ if __name__ == "__main__":
   }
 
 
+  fg_temp  = False
+  fg_press = True
+  fg_h2o   = False
+
   # ... Files and directories ...
   # -----------------------------
 
@@ -640,8 +646,11 @@ if __name__ == "__main__":
   dirin_pl = os.path.join(dirin_bdd, "AN_PL")
   dirin_sf = os.path.join(dirin_bdd, "AN_SF")
   dirout   = os.path.normpath(
-      "/data/slipsl/GEWEX/"
+    os.path.join(project_dir, "output")
   )
+  # dirout   = os.path.normpath(
+  #     "/data/slipsl/GEWEX/"
+  # )
 
   if args.verbose:
     print("dirin_pl: ", dirin_pl)
@@ -667,7 +676,16 @@ if __name__ == "__main__":
 
   date_curr = args.date_start
 
-  while date_curr <= args.date_end:
+  delta = 1 + (args.date_end - args.date_start).days
+
+  pp.pprint(
+    [args.date_start + dt.timedelta(days=i) for i in range(delta)]
+  )
+
+  iter_dates = (args.date_start + dt.timedelta(days=i) for i in range(delta))
+
+  # while date_curr <= args.date_end:
+  for date_curr in iter_dates:
     date_prev = date_curr - dt.timedelta(days=1)
     date_next = date_curr + dt.timedelta(days=1)
 
@@ -677,79 +695,131 @@ if __name__ == "__main__":
 
     fg_process = True
 
-    freemem()
 
-    Tpl = read_ERA5_netcdf(date_curr, lt_instru, "ta")
-    print(Tpl.shape)
-    print(
-      F"{Tpl.min():7.2f}K {Tpl.max():7.2f}K {Tpl.mean():7.2f}K"
+    # Define file names
+    pathout = Path(
+      os.path.join(
+        dirout,
+        F"{date_curr:%Y}",
+        F"{date_curr:%m}",
+      )
     )
 
-    freemem()
 
-    Tsurf = read_ERA5_netcdf(date_curr, lt_instru, "skt")
-    print(Tsurf.shape)
-    print(
-      F"{Tsurf.min():7.2f}K {Tsurf.max():7.2f}K {Tsurf.mean():7.2f}K"
-    )
+    # Path(os.path.join('test_dir', 'level_1b', 'level_2b', 'level_3b')).mkdir(parents=True)
 
-    freemem()
+    # Don’t forget these are all flags for the same function. In other words, we can use both exist_ok and parents flags at the same time!
 
-    Psurf = read_ERA5_netcdf(date_curr, lt_instru, "sp")
-    print(Psurf.shape)
-    Psurf = Psurf / 100.
+    # if not os.path.isdir(pathout):
+    if not pathout.exists():
+      print(F"Create output subdirectory: {pathout}")
+      pathout.mkdir(parents=True, exist_ok=True)
 
-    print(
-      F"{Psurf.min():7.2f}hPa {Psurf.max():7.2f}hPa {Psurf.mean():7.2f}hPa"
-    )
+    # for var in outstr.values():
+    #   print(get_fileout(var, date_curr))
+    #   filepath = os.path.join(pathout, get_fileout(var, date_curr))
+    #   print(filepath)
+    #   # Check if output exists
+    #   if os.path.isfile(filepath):
+    #     print(F"Output file exists. Please remove it and relaunch\n  {filepath}")
+    #     fg_process = False
 
-    freemem()
+    if fg_process:
 
-    # it = np.nditer(Tsurf, flags=["multi_index"])
-    # for x in it:
-    #   print((x, it.multi_index), end=' ')
+      freemem()
 
-    nlat, nlon = Psurf.shape
-    print(nlat, nlon)
+      if fg_temp:
+        Tpl = read_ERA5_netcdf(date_curr, lt_instru, "ta")
+        if not Tpl:
+          print(F"Missing data, skip date")
+          break
+        print(Tpl.shape)
+        print(
+          F"{Tpl.min():7.2f}K {Tpl.max():7.2f}K {Tpl.mean():7.2f}K"
+        )
 
-    nlev = len(P_tigr)
+      freemem()
 
-    nc_lev = [
-      1, 2, 3, 5, 7, 10, 20, 30, 50, 70, 100, 125, 150, 175, 200,
-      225, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
-      775, 800, 825, 850, 875, 900, 925, 950, 975, 1000,
-    ]
+      if fg_temp:
+        Tsurf = read_ERA5_netcdf(date_curr, lt_instru, "skt")
+        if not Tsurf:
+          print(F"Missing data, skip date")
+          break
+        print(Tsurf.shape)
+        print(
+          F"{Tsurf.min():7.2f}K {Tsurf.max():7.2f}K {Tsurf.mean():7.2f}K"
+        )
 
-    status = np.full([nlat, nlon], 90000, dtype=int)
-    T_tigr = np.zeros([nlev+2, nlat, nlon], dtype=float)
-    for idx_lat in range(nlat):
-      for idx_lon in range(nlon):
-        # T_tigr = np.empty([nlev+2], dtype=float)
-        # T_tigr = np.full([nlev+2], -1., dtype=float)
-        # T_tigr = np.full([nlev], -1., dtype=float)
-        # T_tigr = -1.
-        # print(type(T_tigr))
-        T_tigr[:nlev, idx_lat, idx_lon] = np.interp(P_tigr, nc_lev, Tpl[:, idx_lat, idx_lon])
-        cond = P_tigr > Psurf[idx_lat, idx_lon]
-        cond = np.append(cond, [True, True, ])
-        # print(cond)
-        T_tigr[cond] = Tsurf[idx_lat, idx_lon]
-        status[idx_lat, idx_lon] = 10000
+      freemem()
 
-        if idx_lat % 60 == 0 and idx_lon % 120 == 0:
-          print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
-          # print(Tpl[:, idx_lat, idx_lon])
-          print("==>")
-          for T, P in zip(T_tigr[:, idx_lat, idx_lon], P_tigr):
-            print(F"T({P}) = {T:7.2f}", end=" ; ")
-          print(F"T(n+1) = {T_tigr[nlev, idx_lat, idx_lon]:7.2f}", end=" ; ")
-          print(F"T(n+2) = {T_tigr[nlev+1, idx_lat, idx_lon]:7.2f}")
+      if fg_press or fg_temp:
+        Psurf = read_ERA5_netcdf(date_curr, lt_instru, "sp")
+        if Psurf is None:
+          print(F"Missing data, skip date")
+          continue
+        print(Psurf.shape)
+        Psurf = Psurf / 100.
 
+        print(
+          F"{Psurf.min():7.2f}hPa {Psurf.max():7.2f}hPa {Psurf.mean():7.2f}hPa"
+        )
 
-    print(
-      F"{T_tigr.min():7.2f}K {T_tigr.max():7.2f}K {T_tigr.mean():7.2f}K"
-    )
+      freemem()
 
+      # it = np.nditer(Tsurf, flags=["multi_index"])
+      # for x in it:
+      #   print((x, it.multi_index), end=' ')
+
+      nlat, nlon = Psurf.shape
+      print(nlat, nlon)
+
+      nlev = len(P_tigr)
+
+      nc_lev = [
+        1, 2, 3, 5, 7, 10, 20, 30, 50, 70, 100, 125, 150, 175, 200,
+        225, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
+        775, 800, 825, 850, 875, 900, 925, 950, 975, 1000,
+      ]
+
+      if fg_temp:
+        status = np.full([nlat, nlon], 90000, dtype=int)
+        T_tigr = np.zeros([nlev+2, nlat, nlon], dtype=float)
+        for idx_lat in range(nlat):
+          for idx_lon in range(nlon):
+            # T_tigr = np.empty([nlev+2], dtype=float)
+            # T_tigr = np.full([nlev+2], -1., dtype=float)
+            # T_tigr = np.full([nlev], -1., dtype=float)
+            # T_tigr = -1.
+            # print(type(T_tigr))
+            T_tigr[:nlev, idx_lat, idx_lon] = np.interp(
+              P_tigr, nc_lev, Tpl[:, idx_lat, idx_lon]
+            )
+            cond = P_tigr > Psurf[idx_lat, idx_lon]
+            cond = np.append(cond, [True, True, ])
+            # print(cond)
+            T_tigr[cond] = Tsurf[idx_lat, idx_lon]
+            status[idx_lat, idx_lon] = 10000
+
+            if idx_lat % 60 == 0 and idx_lon % 120 == 0:
+              print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
+              # print(Tpl[:, idx_lat, idx_lon])
+              print("==>")
+              for T, P in zip(T_tigr[:, idx_lat, idx_lon], P_tigr):
+                print(F"T({P}) = {T:7.2f}", end=" ; ")
+              print(F"T(n+1) = {T_tigr[nlev, idx_lat, idx_lon]:7.2f}", end=" ; ")
+              print(F"T(n+2) = {T_tigr[nlev+1, idx_lat, idx_lon]:7.2f}")
+
+        print(
+          F"{T_tigr.min():7.2f}K {T_tigr.max():7.2f}K {T_tigr.mean():7.2f}K"
+        )
+
+      fileout = os.path.join(pathout, get_fileout("L2_P_surf_daily_average", date_curr))
+      print(F"Write output to {fileout}")
+
+      print(Psurf)
+      # f_out = FortranFile(fileout, mode="w")
+      with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
+        f.write_record(Psurf.astype(dtype=">f4"))
 
 
 
@@ -823,7 +893,7 @@ if __name__ == "__main__":
 
     # read_netcdf(get_filein(sf_vars[0], date_curr))
 
-    date_curr = date_curr + dt.timedelta(days=1)
+    # date_curr = date_curr + dt.timedelta(days=1)
 
   print("\n"+80*"=")
   print(f"Run ended in {dt.datetime.now() - run_deb}")
