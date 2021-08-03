@@ -239,8 +239,9 @@ def lon_time(lon, lt_instru):
     l = lon - 360.
   l = l / 15.
 
-  # univT = [i - 24. + 0.5 for i in range(72)]
-  univT = [i - 24. for i in range(72)]
+  print("shift = 0.5")
+  # univT = [i - 24. for i in range(72)]
+  univT = [i - 24. + 0.5 for i in range(72)]
   # print(univT)
   localT = [i + l for i in univT]
   # print(localT)
@@ -383,7 +384,7 @@ def read_ERA5_netcdf(date_curr, lt_instru, varname):
 
     # localT = univT + lon / 15.
     # deltaT = abs(localT - lt_instru)
-    deltaT = [abs((i - 24.+0.5 + lon/15.) - lt_instru) for i in range(72)]
+    deltaT = [abs((i - 24.+ 0.5 + lon/15.) - lt_instru) for i in range(72)]
 
     (imin1, imin2) = np.argsort(deltaT)[0:2]
 
@@ -392,8 +393,8 @@ def read_ERA5_netcdf(date_curr, lt_instru, varname):
 
     idx_lon_l[idx] = imin1
     idx_lon_r[idx] = imin2
-    weight_l[idx]  = w1
-    weight_r[idx]  = w2
+    weight_l[idx]  = w2
+    weight_r[idx]  = w1
 
 
   fcurr_in = Dataset(file_curr, "r", format="NETCDF4")
@@ -496,7 +497,14 @@ def read_ERA5_netcdf(date_curr, lt_instru, varname):
   if fnext_in:
     fnext_in.close()
 
+  sorted_lat_idx = nc_lat.argsort()
+  sorted_lon_idx = nc_lon.argsort()
+
+  var_out = var_out[:, sorted_lat_idx, :]
+  var_out = var_out[:, :, sorted_lon_idx]
+
   return np.squeeze(var_out)
+  # return np.squeeze(var_out)
 
 
     # # nc_var = f_in.variables[varname][off_curr:off_curr+24, :, :, :]
@@ -817,9 +825,10 @@ if __name__ == "__main__":
       print(F"Write output to {fileout}")
 
       print(Psurf)
+
       # f_out = FortranFile(fileout, mode="w")
       with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
-        f.write_record(Psurf.astype(dtype=">f4"))
+        f.write_record(Psurf.T.astype(dtype=">f4"))
 
 
 

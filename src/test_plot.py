@@ -8,6 +8,7 @@ from __future__ import print_function, unicode_literals, division
 # ========================
 from pathlib import Path
 import os.path
+import datetime as dt
 import numpy as np
 from scipy.io import FortranFile
 # import matplotlib as mpl
@@ -20,7 +21,20 @@ pp = pprint.PrettyPrinter(indent=2)
 
 #######################################################################
 
-fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, figsize=(10, 15), dpi=300)
+def cm2inch(x):
+
+  return x / 2.54
+
+
+#######################################################################
+
+fig, ((ax1, ax4), (ax2, ax5), (ax3, ax6)) = plt.subplots(
+  figsize=(cm2inch(21.0), cm2inch(29.7)),
+  nrows=3, ncols=2,
+  sharex="all",
+  sharey="all",
+  dpi=300,
+)
 # fig.subplots_adjust(hspace=0.4)
 
 # plt.figure()
@@ -82,9 +96,10 @@ for i, x in enumerate(it):
 
 print("Plot data")
 # ax1.subplot(311)
-im1 = ax1.scatter(x=X, y=Y, c=Z, cmap="coolwarm")
-# ax1.contourf(nc_lon, nc_lat, Pnc, cmap="coolwarm")
+im1 = ax1.scatter(x=X, y=Y, c=Z, cmap="coolwarm", marker=".")
 fig.colorbar(im1, ax=ax1)
+im4 = ax4.contourf(nc_lon, nc_lat, Pnc, cmap="coolwarm")
+fig.colorbar(im1, ax=ax4)
 ax1.set_title("P (netcdf)")
 # print("Save fig")
 # ax1.savefig("Pnc.png")
@@ -107,9 +122,10 @@ for i, x in enumerate(it):
 
 print("Plot data")
 # ax2.subplot(312)
-im2 = ax2.scatter(x=X, y=Y, c=Z, cmap="coolwarm")
-# ax2.contourf(lon, lat, Pold, cmap="coolwarm")
+im2 = ax2.scatter(x=X, y=Y, c=Z, cmap="coolwarm", marker=".")
 fig.colorbar(im2, ax=ax2)
+im5 = ax5.contourf(lon, lat, Pold, cmap="coolwarm")
+fig.colorbar(im2, ax=ax5)
 ax2.set_title("P (ori)")
 
 # ax2.subplots_adjust(hspace=0.5)
@@ -134,12 +150,22 @@ for i, x in enumerate(it):
 
 print("Plot data")
 # ax3.subplot(313)
-im3 = ax3.scatter(x=X, y=Y, c=Z, cmap="coolwarm")
-# ax3.contourf(lon, lat, Pnew, cmap="coolwarm")
+im3 = ax3.scatter(x=X, y=Y, c=Z, cmap="coolwarm", marker=".")
 fig.colorbar(im3, ax=ax3)
+im6 = ax6.contourf(lon, lat, Pnew, cmap="coolwarm")
+fig.colorbar(im3, ax=ax6)
 ax3.set_title("P (new)")
 
 print("Save fig")
+fig.text(
+  0.95, 0.05,
+  # "test",
+  F"{dt.datetime.now():%d/%m/%Y %H:%M:%S}",
+  fontsize=8,
+  fontstyle="italic",
+  ha="right",
+)
+# fig.tight_layout()
 fig.savefig("Pfull.png")
 # plt.show()
 
