@@ -102,7 +102,7 @@ def print_pl(var1, var2):
   print(F"{18*' '}  {var2[4]:9.2e}  {P_tigr[4]:6.2f}")
   print(F"{nc_lev[13]:6.2f}  {var1[13]:9.2e}")
   print(
-    F"{nc_lev[14]:6.2f}  {var1[14]:9.2e}  "
+    F"{nc_lev[14]:6.2f}  {var1[14]:9.2e}   "
     F"{var2[5]:9.2e}  {P_tigr[5]:6.2f}"
   )
   print(F"{18*' '}  {var2[6]:9.2e}  {P_tigr[6]:6.2f}")
@@ -131,7 +131,7 @@ def print_pl(var1, var2):
   print(F"{nc_lev[26]:6.2f}  {var1[26]:9.2e}")
   print(F"{nc_lev[27]:6.2f}  {var1[27]:9.2e}")
   print(
-    F"{nc_lev[28]:6.2f}  {var1[28]:9.2e}  "
+    F"{nc_lev[28]:6.2f}  {var1[28]:9.2e}   "
     F"{var2[18]:9.2e}  {P_tigr[18]:6.2f}"
     )
   print(F"{nc_lev[29]:6.2f}  {var1[29]:9.2e}")
@@ -812,6 +812,7 @@ if __name__ == "__main__":
           break
         print(Tpl.shape)
         print(
+          F"T (pl)"
           F"{Tpl.min():7.2f}K {Tpl.max():7.2f}K {Tpl.mean():7.2f}K"
         )
 
@@ -824,12 +825,13 @@ if __name__ == "__main__":
           break
         print(Tsurf.shape)
         print(
+          F"T (surf)"
           F"{Tsurf.min():7.2f}K {Tsurf.max():7.2f}K {Tsurf.mean():7.2f}K"
         )
 
       freemem()
 
-      if fg_press or fg_temp:
+      if fg_press or fg_temp or fg_h2o:
         Psurf = read_ERA5_netcdf(date_curr, lt_instru, "sp")
         if Psurf is None:
           print(F"Missing data, skip date")
@@ -838,6 +840,7 @@ if __name__ == "__main__":
         Psurf = Psurf / 100.
 
         print(
+          F"P (surf)"
           F"{Psurf.min():7.2f}hPa {Psurf.max():7.2f}hPa {Psurf.mean():7.2f}hPa"
         )
 
@@ -850,7 +853,8 @@ if __name__ == "__main__":
           continue
         print(Qpl.shape)
         print(
-          F"{Qpl.min():7.2f}hPa {Qpl.max():7.2f}hPa {Qpl.mean():7.2f}hPa"
+          F"Q (pl)"
+          F"{Qpl.min():9.2e} {Qpl.max():9.2e} {Qpl.mean():9.2e}"
         )
 
       freemem()
@@ -899,6 +903,7 @@ if __name__ == "__main__":
               print(F"T(n+2) = {T_tigr[nlev+1, idx_lat, idx_lon]:7.2f}")
 
         print(
+          F"T (tigr)"
           F"{T_tigr.min():7.2f}K {T_tigr.max():7.2f}K {T_tigr.mean():7.2f}K"
         )
 
@@ -916,50 +921,75 @@ if __name__ == "__main__":
 
       if fg_h2o:
         Q_tigr = np.zeros([nlev, nlat, nlon], dtype=float)
-        Q_tigr2 = np.zeros([nlev, nlat, nlon], dtype=float)
-        Q_tigr3 = np.zeros([nlev, nlat, nlon], dtype=float)
+        # Q_tigr2 = np.zeros([nlev, nlat, nlon], dtype=float)
+        # Q_tigr3 = np.zeros([nlev, nlat, nlon], dtype=float)
         for idx_lat in range(nlat):
           for idx_lon in range(nlon):
             cond = P_tigr <= Psurf[idx_lat, idx_lon]
             idx_Pmin = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()
             idx_Pmax = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()
 
-            Q_tigr[:, idx_lat, idx_lon] = np.interp(
-              P_tigr, nc_lev, Qpl[:, idx_lat, idx_lon]
-            )
-            Q_tigr2[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
+            # Q_tigr[:, idx_lat, idx_lon] = np.interp(
+            #   P_tigr, nc_lev, Qpl[:, idx_lat, idx_lon]
+            # )
+            # Q_tigr2[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
+            #   P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
+            # )
+            Q_tigr[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
               P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
             )
-            Q_tigr3[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
-              P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
-            )
-            Q_tigr3[idx_Pmax+1:, idx_lat, idx_lon] = Q_tigr3[idx_Pmax, idx_lat, idx_lon]
+            Q_tigr[idx_Pmax+1:, idx_lat, idx_lon] = Q_tigr[idx_Pmax, idx_lat, idx_lon]
 
 
             if idx_lat % 60 == 0 and idx_lon % 120 == 0:
-              # print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
-              # print(len(cond))
-              # print(
-              #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].size}: "
-              #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()} - "
-              #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()}"
-              # )
-              # print(
-              #   np.where(P_tigr <= Psurf[idx_lat, idx_lon])
-              # )
-              if Psurf[idx_lat, idx_lon] >= 1013.:
-                # print(
-                #   Qpl[:, idx_lat, idx_lon],
-                #   Q_tigr[:, idx_lat, idx_lon]
-                # )
-                print(72*"=")
-                print(Psurf[idx_lat, idx_lon])
-                print(72*"-")
-                print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr[:, idx_lat, idx_lon])
-                print(72*"-")
-                print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr3[:, idx_lat, idx_lon])
-                print(72*"-")
-                print(Psurf[idx_lat, idx_lon], idx_Pmax)
+              print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
+            #   # print(len(cond))
+            #   # print(
+            #   #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].size}: "
+            #   #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()} - "
+            #   #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()}"
+            #   # )
+            #   # print(
+            #   #   np.where(P_tigr <= Psurf[idx_lat, idx_lon])
+            #   # )
+            #   if Psurf[idx_lat, idx_lon] >= 1013.:
+            #     # print(
+            #     #   Qpl[:, idx_lat, idx_lon],
+            #     #   Q_tigr[:, idx_lat, idx_lon]
+            #     # )
+            #     print(72*"=")
+            #     print(Psurf[idx_lat, idx_lon])
+            #     print(72*"-")
+            #     print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr[:, idx_lat, idx_lon])
+            #     # print(72*"-")
+            #     # print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr3[:, idx_lat, idx_lon])
+            #     print(72*"-")
+            #     print(Psurf[idx_lat, idx_lon], idx_Pmax)
+
+        print(
+          F"Q (tigr)"
+          F"{Q_tigr.min():9.2e} {Q_tigr.max():9.2e} {Q_tigr.mean():9.2e}"
+        )
+        Q_tigr = Q_tigr * coeff_h2o
+        print(
+          F"Q (tigr) * coeff"
+          F"{Q_tigr.min():9.2e} {Q_tigr.max():9.2e} {Q_tigr.mean():9.2e}"
+        )
+
+        fileout = os.path.join(pathout, get_fileout(outstr["h2o"], date_curr))
+        print(F"Write output to {fileout}")
+
+        # f_out = FortranFile(fileout, mode="w")
+        with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
+          f.write_record(
+            np.rollaxis(Q_tigr, 2, 1).astype(dtype=">f4")
+          )
+          # f.write_record(Q_tigr.T.astype(dtype=">f4"))
+
+
+
+
+
 
 
 
