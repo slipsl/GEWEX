@@ -1,0 +1,22 @@
+name: gewex2
+# channels:
+#   - javascript
+dependencies:
+  - python=3.6.3   # or 2.7
+  - pip
+  - psutil
+  - pathlib
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - netCDF4
+  # - pprint
+  # - datetime
+  # - os
+
+# from cftime  num2date, date2num
+# from fortio  FortranFile
+
+
+

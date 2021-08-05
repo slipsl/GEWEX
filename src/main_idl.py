@@ -80,6 +80,75 @@ def get_arguments():
 
 
 #----------------------------------------------------------------------
+def print_pl(var1, var2):
+
+  # print(F"{nc_lev[0]:5.2f}  {var1[0]:9.2e}")
+  # print(F"{nc_lev[1]:5.2f}  {var1[1]:9.2e}")
+  # print(F"{nc_lev[2]:5.2f}  {var1[2]:9.2e}")
+  # print(F"{nc_lev[3]:5.2f}  {var1[3]:9.2e}")
+  # print(F"{nc_lev[4]:5.2f}  {var1[4]:9.2e}")
+  # print(F"{nc_lev[5]:5.2f}  {var1[5]:9.2e}")
+  # print(F"{nc_lev[6]:5.2f}  {var1[6]:9.2e}")
+  # print(F"{nc_lev[7]:5.2f}  {var1[7]:9.2e}")
+  print(F"{nc_lev[8]:6.2f}  {var1[8]:9.2e}")
+  print(F"{18*' '}  {var2[0]:9.2e}  {P_tigr[0]:6.2f}")
+  print(F"{nc_lev[9]:6.2f}  {var1[9]:9.2e}")
+  print(F"{18*' '}  {var2[1]:9.2e}  {P_tigr[1]:6.2f}")
+  print(F"{nc_lev[10]:6.2f}  {var1[10]:9.2e}")
+  print(F"{18*' '}  {var2[2]:9.2e}  {P_tigr[2]:6.2f}")
+  print(F"{nc_lev[11]:6.2f}  {var1[11]:9.2e}")
+  print(F"{18*' '}  {var2[3]:9.2e}  {P_tigr[3]:6.2f}")
+  print(F"{nc_lev[12]:6.2f}  {var1[12]:9.2e}")
+  print(F"{18*' '}  {var2[4]:9.2e}  {P_tigr[4]:6.2f}")
+  print(F"{nc_lev[13]:6.2f}  {var1[13]:9.2e}")
+  print(
+    F"{nc_lev[14]:6.2f}  {var1[14]:9.2e}  "
+    F"{var2[5]:9.2e}  {P_tigr[5]:6.2f}"
+  )
+  print(F"{18*' '}  {var2[6]:9.2e}  {P_tigr[6]:6.2f}")
+  print(F"{nc_lev[15]:6.2f}  {var1[15]:9.2e}")
+  print(F"{18*' '}  {var2[7]:9.2e}  {P_tigr[7]:6.2f}")
+  print(F"{nc_lev[16]:6.2f}  {var1[16]:9.2e}")
+  print(F"{18*' '}  {var2[8]:9.2e}  {P_tigr[8]:6.2f}")
+  print(F"{nc_lev[17]:6.2f}  {var1[17]:9.2e}")
+  print(F"{18*' '}  {var2[9]:9.2e}  {P_tigr[9]:6.2f}")
+  print(F"{18*' '}  {var2[10]:9.2e}  {P_tigr[10]:6.2f}")
+  print(F"{nc_lev[18]:6.2f}  {var1[18]:9.2e}")
+  print(F"{18*' '}  {var2[11]:9.2e}  {P_tigr[11]:6.2f}")
+  print(F"{nc_lev[19]:6.2f}  {var1[19]:9.2e}")
+  print(F"{18*' '}  {var2[12]:9.2e}  {P_tigr[12]:6.2f}")
+  print(F"{nc_lev[20]:6.2f}  {var1[20]:9.2e}")
+  print(F"{18*' '}  {var2[13]:9.2e}  {P_tigr[13]:6.2f}")
+  print(F"{nc_lev[21]:6.2f}  {var1[21]:9.2e}")
+  print(F"{18*' '}  {var2[14]:9.2e}  {P_tigr[14]:6.2f}")
+  print(F"{nc_lev[22]:6.2f}  {var1[22]:9.2e}")
+  print(F"{18*' '}  {var2[15]:9.2e}  {P_tigr[15]:6.2f}")
+  print(F"{nc_lev[23]:6.2f}  {var1[23]:9.2e}")
+  print(F"{nc_lev[24]:6.2f}  {var1[24]:9.2e}")
+  print(F"{18*' '}  {var2[16]:9.2e}  {P_tigr[16]:6.2f}")
+  print(F"{nc_lev[25]:6.2f}  {var1[25]:9.2e}")
+  print(F"{18*' '}  {var2[17]:9.2e}  {P_tigr[17]:6.2f}")
+  print(F"{nc_lev[26]:6.2f}  {var1[26]:9.2e}")
+  print(F"{nc_lev[27]:6.2f}  {var1[27]:9.2e}")
+  print(
+    F"{nc_lev[28]:6.2f}  {var1[28]:9.2e}  "
+    F"{var2[18]:9.2e}  {P_tigr[18]:6.2f}"
+    )
+  print(F"{nc_lev[29]:6.2f}  {var1[29]:9.2e}")
+  print(F"{18*' '}  {var2[19]:9.2e}  {P_tigr[19]:6.2f}")
+  print(F"{nc_lev[30]:6.2f}  {var1[30]:9.2e}")
+  print(F"{nc_lev[31]:6.2f}  {var1[31]:9.2e}")
+  print(F"{nc_lev[32]:6.2f}  {var1[32]:9.2e}")
+  print(F"{18*' '}  {var2[20]:9.2e}  {P_tigr[20]:6.2f}")
+  print(F"{nc_lev[33]:6.2f}  {var1[33]:9.2e}")
+  print(F"{nc_lev[34]:6.2f}  {var1[34]:9.2e}")
+  print(F"{18*' '}  {var2[21]:9.2e}  {P_tigr[21]:6.2f}")
+  print(F"{nc_lev[35]:6.2f}  {var1[35]:9.2e}")
+  print(F"{nc_lev[36]:6.2f}  {var1[36]:9.2e}")
+  print(F"{18*' '}  {var2[22]:9.2e}  {P_tigr[22]:6.2f}")
+
+
+#----------------------------------------------------------------------
 def freemem():
 
   # you can calculate percentage of available memory
@@ -637,7 +706,7 @@ if __name__ == "__main__":
 
   fg_temp  = False
   fg_press = True
-  fg_h2o   = False
+  fg_h2o   = True
 
   # ... Files and directories ...
   # -----------------------------
@@ -774,6 +843,18 @@ if __name__ == "__main__":
 
       freemem()
 
+      if fg_h2o:
+        Qpl = read_ERA5_netcdf(date_curr, lt_instru, "q")
+        if Qpl is None:
+          print(F"Missing data, skip date")
+          continue
+        print(Qpl.shape)
+        print(
+          F"{Qpl.min():7.2f}hPa {Qpl.max():7.2f}hPa {Qpl.mean():7.2f}hPa"
+        )
+
+      freemem()
+
       # it = np.nditer(Tsurf, flags=["multi_index"])
       # for x in it:
       #   print((x, it.multi_index), end=' ')
@@ -824,11 +905,62 @@ if __name__ == "__main__":
       fileout = os.path.join(pathout, get_fileout("L2_P_surf_daily_average", date_curr))
       print(F"Write output to {fileout}")
 
-      print(Psurf)
+      # print(Psurf)
 
-      # f_out = FortranFile(fileout, mode="w")
-      with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
-        f.write_record(Psurf.T.astype(dtype=">f4"))
+      # # f_out = FortranFile(fileout, mode="w")
+      # with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
+      #   f.write_record(Psurf.T.astype(dtype=">f4"))
+
+
+
+
+      if fg_h2o:
+        Q_tigr = np.zeros([nlev, nlat, nlon], dtype=float)
+        Q_tigr2 = np.zeros([nlev, nlat, nlon], dtype=float)
+        Q_tigr3 = np.zeros([nlev, nlat, nlon], dtype=float)
+        for idx_lat in range(nlat):
+          for idx_lon in range(nlon):
+            cond = P_tigr <= Psurf[idx_lat, idx_lon]
+            idx_Pmin = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()
+            idx_Pmax = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()
+
+            Q_tigr[:, idx_lat, idx_lon] = np.interp(
+              P_tigr, nc_lev, Qpl[:, idx_lat, idx_lon]
+            )
+            Q_tigr2[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
+              P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
+            )
+            Q_tigr3[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
+              P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
+            )
+            Q_tigr3[idx_Pmax+1:, idx_lat, idx_lon] = Q_tigr3[idx_Pmax, idx_lat, idx_lon]
+
+
+            if idx_lat % 60 == 0 and idx_lon % 120 == 0:
+              # print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
+              # print(len(cond))
+              # print(
+              #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].size}: "
+              #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()} - "
+              #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()}"
+              # )
+              # print(
+              #   np.where(P_tigr <= Psurf[idx_lat, idx_lon])
+              # )
+              if Psurf[idx_lat, idx_lon] >= 1013.:
+                # print(
+                #   Qpl[:, idx_lat, idx_lon],
+                #   Q_tigr[:, idx_lat, idx_lon]
+                # )
+                print(72*"=")
+                print(Psurf[idx_lat, idx_lon])
+                print(72*"-")
+                print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr[:, idx_lat, idx_lon])
+                print(72*"-")
+                print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr3[:, idx_lat, idx_lon])
+                print(72*"-")
+                print(Psurf[idx_lat, idx_lon], idx_Pmax)
+
 
 
 
