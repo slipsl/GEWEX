@@ -874,6 +874,13 @@ if __name__ == "__main__":
         775, 800, 825, 850, 875, 900, 925, 950, 975, 1000,
       ]
 
+
+      nc_lat = [i/4. for i in range(4*90, -4*91, -1)]
+      nc_lon = [i/4. for i in range(0, 360*4)]
+      pp.pprint(nc_lat)
+      pp.pprint(nc_lon)
+
+
       if fg_temp:
         status = np.full([nlat, nlon], 90000, dtype=int)
         T_tigr = np.zeros([nlev+2, nlat, nlon], dtype=float)
@@ -907,6 +914,14 @@ if __name__ == "__main__":
           F"{T_tigr.min():7.2f}K {T_tigr.max():7.2f}K {T_tigr.mean():7.2f}K"
         )
 
+        fileout = os.path.join(pathout, get_fileout(outstr["temp"], date_curr))
+        print(F"Write output to {fileout}")
+
+        with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
+          f.write_record(
+            np.rollaxis(T_tigr, 2, 1).astype(dtype=">f4")
+          )
+
       fileout = os.path.join(pathout, get_fileout("L2_P_surf_daily_average", date_curr))
       print(F"Write output to {fileout}")
 
@@ -915,8 +930,6 @@ if __name__ == "__main__":
       # # f_out = FortranFile(fileout, mode="w")
       # with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
       #   f.write_record(Psurf.T.astype(dtype=">f4"))
-
-
 
 
       if fg_h2o:
@@ -940,7 +953,6 @@ if __name__ == "__main__":
             )
             Q_tigr[idx_Pmax+1:, idx_lat, idx_lon] = Q_tigr[idx_Pmax, idx_lat, idx_lon]
 
-
             if idx_lat % 60 == 0 and idx_lon % 120 == 0:
               print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
             #   # print(len(cond))
@@ -952,7 +964,47 @@ if __name__ == "__main__":
             #   # print(
             #   #   np.where(P_tigr <= Psurf[idx_lat, idx_lon])
             #   # )
-            #   if Psurf[idx_lat, idx_lon] >= 1013.:
+              if Psurf[idx_lat, idx_lon] >= P_tigr[-1]:
+                print("Exrapolate")
+                print(
+                  nc_lev[-2:],
+                  Qpl[-2:, idx_lat, idx_lon] * coeff_h2o,
+                  np.polyfit(
+                    x=nc_lev[-2:],
+                    y=Qpl[-2:, idx_lat, idx_lon],
+                    deg=1,
+                  )
+                )
+                (a, b) = np.polyfit(
+                  x=nc_lev[-2:],
+                  y=Qpl[-2:, idx_lat, idx_lon],
+                  deg=1,
+                )
+                print(
+                  Q_tigr[-1, idx_lat, idx_lon] * coeff_h2o,
+                  (a * P_tigr[-1] + b) * coeff_h2o,
+                )
+
+            if (nc_lat[idx_lat] == -19.25 and nc_lon[idx_lon] == 17.25) or \
+               (nc_lat[idx_lat] == -100.5 and nc_lon[idx_lon] == 14.5):
+              print(80*"*")
+              print(
+                Psurf[idx_lat, idx_lon],
+                Qpl[:, idx_lat, idx_lon],
+                Q_tigr[:, idx_lat, idx_lon],
+              )
+              print(80*"*")
+
+            if Psurf[idx_lat, idx_lon] >= P_tigr[-1]:
+              (a, b) = np.polyfit(
+                x=nc_lev[-2:],
+                y=Qpl[-2:, idx_lat, idx_lon],
+                deg=1,
+              )
+              Q_tigr[-1, idx_lat, idx_lon] = (a * P_tigr[-1] + b)
+
+
+
             #     # print(
             #     #   Qpl[:, idx_lat, idx_lon],
             #     #   Q_tigr[:, idx_lat, idx_lon]
@@ -966,13 +1018,9 @@ if __name__ == "__main__":
             #     print(72*"-")
             #     print(Psurf[idx_lat, idx_lon], idx_Pmax)
 
-        print(
-          F"Q (tigr)"
-          F"{Q_tigr.min():9.2e} {Q_tigr.max():9.2e} {Q_tigr.mean():9.2e}"
-        )
         Q_tigr = Q_tigr * coeff_h2o
         print(
-          F"Q (tigr) * coeff"
+          F"Q (tigr): "
           F"{Q_tigr.min():9.2e} {Q_tigr.max():9.2e} {Q_tigr.mean():9.2e}"
         )
 
@@ -1071,3 +1119,20 @@ if __name__ == "__main__":
 
   exit()
 
+# ********************************************************************************
+# 1020.802890625 [3.78422374e-06 3.26374834e-06 3.12803695e-06 3.46509478e-06
+#  3.40062434e-06 3.16598926e-06 2.76479523e-06 2.76553055e-06
+#  2.59047783e-06 2.35205493e-06 1.61622961e-06 2.52195787e-06
+#  3.09501547e-06 4.23539404e-06 6.26800693e-06 1.05665367e-05
+#  1.38216419e-05 2.38398079e-05 5.61349189e-05 8.99301958e-05
+#  1.06964842e-04 8.09465200e-05 1.16594922e-04 1.27383886e-04
+#  1.82292948e-04 1.11144455e-03 2.20645498e-03 2.18914961e-03
+#  1.93020550e-03 1.35288876e-03 1.28993182e-03 2.40233284e-03
+#  8.39262921e-03 1.12019610e-02 1.14798825e-02 1.15118129e-02
+#  1.15749948e-02] [2.35551207e-06 1.95789784e-06 1.84338626e-06 2.66407615e-06
+#  3.64194104e-06 6.26800693e-06 1.01624749e-05 1.35443070e-05
+#  1.90210701e-05 2.84903039e-05 5.09612421e-05 7.69054961e-05
+#  9.80557223e-05 9.55896319e-05 9.87707208e-05 1.24104041e-04
+#  2.01619301e-04 1.65413172e-03 1.93020550e-03 1.29323077e-03
+#  8.42971239e-03 1.14864219e-02 1.15749948e-02]
+# ********************************************************************************

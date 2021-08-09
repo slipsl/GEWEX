@@ -191,10 +191,10 @@ fig.text(
 #   yticks=range(-90, 91, 30),
 # )
 
-# We change the fontsize of minor ticks label 
+# We change the fontsize of minor ticks label
 for ax in (ax1, ax2, ax3, ax4, ax5, ax6):
   ax.tick_params(axis='both', which='major', labelsize=8)
-  ax.tick_params(axis='x', labelrotation = 45)
+  ax.tick_params(axis='x', labelrotation=45)
   # ax.tick_params(axis='both', which='minor', labelsize=8)
   ax.set_xlim([-180., 180.])
   ax.set_ylim([-90., 90.])
