@@ -10,32 +10,226 @@
 # ==================================================================== #
 
 # This must come first
-from __future__ import print_function, unicode_literals, division
+# from __future__ import print_function, unicode_literals, division
 
 # Standard library imports
 # ========================
-import psutil
-import os
-from pathlib import Path
-import datetime as dt
+# import psutil
+# import os
+# from pathlib import Path
+# import datetime as dt
 # from cftime import num2date, date2num
-import pprint
+# import pprint
 
 
-import numpy as np
-import pandas as pd
-# from fortio import FortranFile
-from scipy.io import FortranFile
-from netCDF4 import Dataset
+# import numpy as np
+# import pandas as pd
+# # from fortio import FortranFile
+# from scipy.io import FortranFile
+# from netCDF4 import Dataset
 
-pp = pprint.PrettyPrinter(indent=2)
+# pp = pprint.PrettyPrinter(indent=2)
 
 # Standard library imports
 # ========================
 # from subroutines import *
 
 
-#######################################################################
+# =====================================================================
+# =                             Classes                               =
+# =====================================================================
+class InstruParam(object):
+  # -------------------------------------------------------------------
+  def __init__(self, runtype):
+
+    runtypes = {
+      1: {"name": "AIRS_V6", "f_q": 1.e3, "tnode":  1.5, "ampm": "AM"},
+      2: {"name": "AIRS_V6", "f_q": 1.e3, "tnode": 13.5, "ampm": "PM"},
+      3: {"name": "IASI",    "f_q": 1.,   "tnode":  9.5, "ampm": "AM"},
+      4: {"name": "IASI",    "f_q": 1.,   "tnode": 23.5, "ampm": "PM"},
+      5: {"name": "AIRS_V6", "f_q": 1.e3, "tnode":  0.0, "ampm": "AM"},
+      # 1: {"name": "AIRS_V6", "f_q": 1.e3, "f_p": 100., "tnode":  1.5, "ampm": "AM"},
+      # 2: {"name": "AIRS_V6", "f_q": 1.e3, "f_p": 100., "tnode": 13.5, "ampm": "PM"},
+      # 3: {"name": "IASI",    "f_q": 1.,   "f_p": 100., "tnode":  9.5, "ampm": "AM"},
+      # 4: {"name": "IASI",    "f_q": 1.,   "f_p": 100., "tnode": 23.5, "ampm": "PM"},
+    }
+
+    self.name  = runtypes[runtype]["name"]
+    self.f_q   = runtypes[runtype]["f_q"]
+    self.f_p   = 100.  # runtypes[runtype]["f_p"]
+    self.tnode = runtypes[runtype]["tnode"]
+    self.ampm  = runtypes[runtype]["ampm"]
+
+  # -------------------------------------------------------------------
+  def __repr__(self):
+    return (
+      F"Instrument:   {self.name}\n"
+      F"H2O coeff:    {self.f_q}\n"
+      F"P coeff:      {self.f_p}\n"
+      F"Time at node: {self.tnode}\n"
+      F"AM / PM:      {self.ampm}"
+    )
+
+
+# =====================================================================
+class GewexParam(object):
+  # -------------------------------------------------------------------
+  def __init__(self):
+
+    self.fileversion = "05"
+    self.outstr = {
+      "temp"  : "L2_temperature_daily_average",
+      "h2o"   : "L2_H2O_daily_average",
+      "press" : "L2_P_surf_daily_average",
+      "stat"  : "L2_status",
+    }
+
+  # -------------------------------------------------------------------
+  def __repr__(self):
+    return F"File version: {self.fileversion}"
+
+
+# =====================================================================
+class Variable(object):
+  # -------------------------------------------------------------------
+  def __init__(self, name, instru):
+
+    self.name = name
+
+    if name == "Psurf":
+      self.ncvar = "sp"
+      self.mode = "2d"
+      self.coeff = 100.
+      self.str = "L2_P_surf_daily_average"
+    if name == "Tsurf":
+      self.ncvar = "skt"
+      self.mode = "2d"
+      self.coeff = 1.
+      self.str = None
+    if name == "temp":
+      self.ncvar = "ta"
+      self.mode = "3d"
+      self.coeff = 1.
+      self.str = "L2_temperature_daily_average"
+    if name == "h2o":
+      self.ncvar = "q"
+      self.mode = "3d"
+      self.coeff = instru.f_q
+      self.str = "L2_H2O_daily_average"
+    if name == "stat":
+      self.ncvar = None
+      self.mode = None
+      self.coeff = None
+      self.str = "L2_status"
+
+    self.fileversion = "05"
+    self.instru = instru.name
+    self.ampm = instru.ampm
+
+
+  # -------------------------------------------------------------------
+  def __repr__(self):
+    return (
+      F"{self.name} ({self.mode}): "
+      F"{self.ncvar} * {self.coeff} => "
+      F"{self.str}"
+    )
+
+  # -------------------------------------------------------------------
+  def fileout(self, date):
+
+    if self.str:
+      ret = (
+        F"unmasked_ERA5_{self.instru}_{self.str}."
+        F"{date:%Y%m%d}."
+        F"{self.ampm}_{self.fileversion}"
+      )
+    else:
+      ret = None
+
+    return ret
+
+  # -------------------------------------------------------------------
+  def dirout(self, dirout, date):
+
+    if self.str:
+      ret = dirout.joinpath(F"{date:%Y}", F"{date:%m}")
+    else:
+      ret = None
+
+    return ret
+
+
+  # -------------------------------------------------------------------
+  def pathout(self, dirout, date):
+
+    if self.str:
+      ret = self.dirout(dirout, date).joinpath(self.fileout(date))
+    else:
+      ret = None
+
+    return ret
+
+
+class TGGrid(object):
+  # -------------------------------------------------------------------
+  def __init__(self):
+    self.loaded = False
+
+  # -------------------------------------------------------------------
+  def __repr__(self):
+
+    if not self.loaded:
+      ret = str(self.loaded)
+    else:
+      ret = (
+        F"lat: [ {self.lat[0]} ; {self.lat[-1]} ], "
+        F"step = {self.lat[1]-self.lat[0]}, len = {self.nlat}\n"
+        F"lon: [ {self.lon[0]} ; {self.lon[-1]} ], "
+        F"step = {self.lon[1]-self.lon[0]}, len = {self.nlon}\n"
+        F"lev: {self.lev}, len = {self.nlev}"
+      )
+
+    return ret
+
+  # -------------------------------------------------------------------
+  def load(self, nc_grid):
+
+    import numpy as np
+
+    self.loaded = True
+
+    # Latitude: [-90 ; +90]
+    self.lat = np.ma.array(
+      np.arange(-90., 90.1, 0.25),
+      mask=False,
+    )
+    self.nlat = self.lat.size
+
+    # Longitude: [-180 ; +180[
+    self.lon = np.ma.array(
+      np.arange(-180., 180., 0.25),
+      mask=False,
+    )
+    self.nlon = self.lon.size
+
+    # Level: 23 levels
+    self.lev = np.ma.array(
+      [
+         69.71,  86.07, 106.27, 131.20,
+        161.99, 200.00, 222.65, 247.87,
+        275.95, 307.20, 341.99, 380.73,
+        423.85, 471.86, 525.00, 584.80,
+        651.04, 724.78, 800.00, 848.69,
+        900.33, 955.12, 1013.00,
+      ],
+      mask=False,
+    )
+    self.nlev = self.lev.size
+
+# =====================================================================
+# =                            Functions                              =
+# =====================================================================
 def get_arguments():
   from argparse import ArgumentParser
   from argparse import RawTextHelpFormatter
@@ -1010,9 +1204,7 @@ if __name__ == "__main__":
             # if (nc_lon[idx_lon] == -19.25 and nc_lat[idx_lat] == 17.25) or \
             #    (nc_lon[idx_lon] == -100.5 and nc_lat[idx_lat] == 14.5):
             if (idx_lat == 291 and idx_lon == 1363) or \
-               (idx_lat == 302 and idx_lon == 402) or \
-               (idx_lat == 418 and idx_lon == 1122) or \
-               (idx_lat == 429 and idx_lon == 643):
+               (idx_lat == 302 and idx_lon == 402):
               print(72*"*")
               pp.pprint(
                 F"{Psurf[idx_lat, idx_lon]} / "

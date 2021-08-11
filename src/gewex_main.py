@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import datetime as dt
 # from cftime import num2date, date2num
+import cftime as cf  # num2date, date2num
 import pprint
 
 
@@ -30,9 +31,10 @@ from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
 
-# Standard library imports
+# Application library imports
 # ========================
-# from subroutines import *
+import gewex_param as gw
+import gewex_netcdf as gnc
 
 
 #######################################################################
@@ -51,7 +53,7 @@ def get_arguments():
   parser.add_argument(
     "runtype", action="store",
     type=int,
-    choices=[1, 2, 3, 4],
+    choices=[1, 2, 3, 4, 5],
     help= "Run type:\n"
           "  - 1 = AIRS / AM\n"
           "  - 2 = AIRS / PM\n"
@@ -151,6 +153,17 @@ def print_pl(var1, var2):
 #----------------------------------------------------------------------
 def freemem():
 
+  # # gives a single float value
+  # print(psutil.cpu_percent())
+  # # gives an object with many fields
+  # print(psutil.virtual_memory())
+  # # you can convert that object to a dictionary 
+  # print(dict(psutil.virtual_memory()._asdict()))
+  # # you can have the percentage of used RAM
+  # print(psutil.virtual_memory().percent)
+  # # you can calculate percentage of available memory
+  # print(psutil.virtual_memory().available * 100 / psutil.virtual_memory().total)
+
   # you can calculate percentage of available memory
   print(
     F"Free memory = "
@@ -166,15 +179,35 @@ def freemem():
 
 
 #----------------------------------------------------------------------
+def iter_dates(start, stop):
+
+  # # a generator that yields items instead of returning a list
+  # def firstn(n):
+  #     num = 0
+  #     while num < n:
+  #         yield num
+  #         num += 1
+
+  delta = 1 + (stop - start).days
+
+  # pp.pprint(
+  #   [args.date_start + dt.timedelta(days=i) for i in range(delta)]
+  # )
+
+  return (start + dt.timedelta(days=i) for i in range(delta))
+
+
+
+#----------------------------------------------------------------------
 def num2date(val):
 
   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
 
 
-# #----------------------------------------------------------------------
-# def date2num(val):
+#----------------------------------------------------------------------
+def date2num(val):
 
-#   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
+  return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
 
 
 #----------------------------------------------------------------------
@@ -359,8 +392,7 @@ def read_var_info(filename, varname):
 def def_slice(
   cnt_tim,   cnt_lat,   cnt_lon,   cnt_lev=0,
   off_tim=0, off_lat=0, off_lon=0, off_lev=0,
-  stp_tim=None, stp_lat=None, stp_lon=None, stp_lev=None,
-):
+  stp_tim=None, stp_lat=None, stp_lon=None, stp_lev=None, ):
 
   if cnt_lev:
     ret = [
@@ -615,18 +647,7 @@ if __name__ == "__main__":
 
   run_deb = dt.datetime.now()
 
-  # gives a single float value
-  print(psutil.cpu_percent())
-  # gives an object with many fields
-  print(psutil.virtual_memory())
-  # you can convert that object to a dictionary 
-  print(dict(psutil.virtual_memory()._asdict()))
-  # you can have the percentage of used RAM
-  print(psutil.virtual_memory().percent)
-  # you can calculate percentage of available memory
-  print(psutil.virtual_memory().available * 100 / psutil.virtual_memory().total)
-
-
+  freemem()
 
   # .. Initialization ..
   # ====================
@@ -673,28 +694,360 @@ if __name__ == "__main__":
     1013.00,
   ]
 
-  if args.runtype == 1 or args.runtype == 2 :
-    instrument = "AIRS_V6"
-    coeff_h2o = 1000.0
-    if args.runtype == 1:
-      lt_instru = 1.5
-      ampm = "AM"
-    else:
-      lt_instru = 13.5
-      ampm = "PM"
-  else:
-    instrument = "IASI"
-    coeff_h2o = 1.0
-    if args.runtype == 3:
-      lt_instru = 9.5
-      ampm = "AM"
-    else:
-      lt_instru = 23.5
-      ampm = "PM"
 
-  fileversion = "05"
+  # ... Files and directories ...
+  # -----------------------------
+  project_dir = Path(__file__).resolve().parents[1]
+  dirin = project_dir.joinpath("input")
+  # dirin_3d = dirin.joinpath("AN_PL")
+  # dirin_2d = dirin.joinpath("AN_SF")
+  dirout   = project_dir.joinpath("output")
+
+
+  instru = gw.InstruParam(args.runtype)
+  params = gw.GewexParam()
+  print(instru)
+  print(params)
+
+  fg_temp  = True
+  fg_press = True
+  fg_h2o   = True
+
+
+  # .. Main program ..
+  # ==================
+
+  # ... Initialize things ...
+  # -------------------------
+
+  nc_grid = gnc.NCGrid()
+  target_grid = gw.TGGrid()
+
+
+  for date_curr in iter_dates(args.date_start, args.date_end):
+    date_prev = date_curr - dt.timedelta(days=1)
+    date_next = date_curr + dt.timedelta(days=1)
+
+    print(
+      F"{72*'='}\n{date_prev} < {date_curr} > {date_next}\n{72*'-'}"
+    )
+
+    fg_process = True
+
+    ncfiles = []
+    outfiles = []
+
+    Psurf = gw.Variable("Psurf", instru)
+    ncfiles.append(gnc.get_ncfile(Psurf, dirin, date_prev))
+    ncfiles.append(gnc.get_ncfile(Psurf, dirin, date_curr))
+    ncfiles.append(gnc.get_ncfile(Psurf, dirin, date_next))
+    outfiles.append(Psurf.pathout(dirout, date_curr))
+
+    if fg_temp:
+      Tsurf = gw.Variable("Tsurf", instru)
+      ncfiles.append(gnc.get_ncfile(Tsurf, dirin, date_prev))
+      ncfiles.append(gnc.get_ncfile(Tsurf, dirin, date_curr))
+      ncfiles.append(gnc.get_ncfile(Tsurf, dirin, date_next))
+      T = gw.Variable("temp", instru)
+      ncfiles.append(gnc.get_ncfile(T, dirin, date_prev))
+      ncfiles.append(gnc.get_ncfile(T, dirin, date_curr))
+      ncfiles.append(gnc.get_ncfile(T, dirin, date_next))
+      outfiles.append(T.pathout(dirout, date_curr))
+
+      stat = gw.Variable("stat", instru)
+      outfiles.append(stat.pathout(dirout, date_curr))
+
+    if fg_h2o:
+      Q = gw.Variable("h2o", instru)
+      ncfiles.append(gnc.get_ncfile(Q, dirin, date_prev))
+      ncfiles.append(gnc.get_ncfile(Q, dirin, date_curr))
+      ncfiles.append(gnc.get_ncfile(Q, dirin, date_next))
+      outfiles.append(Q.pathout(dirout, date_curr))
+
+
+    # print(outfiles)
+
+    # print(Psurf)
+    # print(Psurf.pathout(dirout, args.date_start))
+    # print(gnc.get_ncfile(Psurf, dirin, args.date_start))
+    # # print(Psurf.dirout(dirout, args.date_start))
+    # # print(Psurf.fileout(args.date_start))
+    # print(Tsurf)
+    # print(Tsurf.pathout(dirout, args.date_start))
+    # print(gnc.get_ncfile(Tsurf, dirin, args.date_start))
+    # # print(Tsurf.dirout(dirout, args.date_start))
+    # # print(Tsurf.fileout(args.date_start))
+    # print(T)
+    # print(T.pathout(dirout, args.date_start))
+    # print(gnc.get_ncfile(T, dirin, args.date_start))
+    # # print(T.dirout(dirout, args.date_start))
+    # # print(T.fileout(args.date_start))
+    # print(Q)
+    # print(Q.pathout(dirout, args.date_start))
+    # print(gnc.get_ncfile(Q, dirin, args.date_start))
+    # # print(Q.dirout(dirout, args.date_start))
+    # # print(Q.fileout(args.date_start))
+    # print(stat)
+    # print(stat.pathout(dirout, args.date_start))
+    # # print(stat.dirout(dirout, args.date_start))
+    # # print(stat.fileout(args.date_start))
+
+
+    # if not pathout.exists():
+    #   print(F"Create output subdirectory: {pathout}")
+    #   pathout.mkdir(parents=True, exist_ok=True)
+
+    # for var in outstr.values():
+    #   print(get_fileout(var, date_curr))
+    #   filepath = os.path.join(pathout, get_fileout(var, date_curr))
+    #   print(filepath)
+    #   # Check if output exists
+    #   if os.path.isfile(filepath):
+    #     print(F"Output file exists. Please remove it and relaunch\n  {filepath}")
+    #     fg_process = False
+
+
+    # ... Check input files ...
+    # -------------------------
+    ncfiles = np.unique(ncfiles)
+    filesok = [f.exists() for f in ncfiles]
+
+    missfiles = np.ma.array(
+      ncfiles,
+      # mask=np.logical_not(filesok)
+      mask=filesok
+    )
+    if not all(filesok):
+      print(F"Missing input file(s), skip date")
+      for file in missfiles[~missfiles.mask]:
+        print(F"  - {file}")
+      continue
+
+    # ... Check output files ...
+    # --------------------------
+    filesok = [f.exists() for f in outfiles]
+    donefiles = np.ma.array(
+      outfiles,
+      mask=np.logical_not(filesok)
+      # mask=filesok
+    )
+    if any(filesok):
+      print(F"Onput file(s) already there, skip date")
+      for file in donefiles[~donefiles.mask]:
+        print(F"  - {file}")
+      continue
+
+    # ... Load NetCDF & target grids ...
+    # ----------------------------------
+    if not nc_grid.loaded:
+      nc_grid.load(gnc.get_ncfile(T, dirin, args.date_start))
+
+    if not target_grid.loaded:
+      target_grid.load(nc_grid)
+
+
+
+
+    # To get -180. < lon < +180.
+    lon = nc_grid.lon
+    lon = np.empty([nc_grid.nlon, ], dtype=float)
+    cond = nc_grid.lon[:] > 180.
+    lon[cond] = nc_grid.lon[cond] - 360.
+    lon[~cond] = nc_grid.lon[~cond]
+
+    idx_lon_l = np.empty([nc_grid.nlon, ], dtype=int)
+    idx_lon_r = np.empty([nc_grid.nlon, ], dtype=int)
+    weight_l  = np.empty([nc_grid.nlon, ], dtype=float)
+    weight_r  = np.empty([nc_grid.nlon, ], dtype=float)
+
+    # Three days worth of timesteps (ts = 1 hour)
+    # univT = [i - 24. + 0.5 for i in range(72)]
+
+    with open("poids.dat", "w") as f:
+      for idx, lon in enumerate(lon):
+        # print(idx, lon)
+        # print(instru.tnode)
+
+        # localT = univT + lon / 15.
+        # deltaT = abs(localT - lt_instru)
+        deltaT = [
+          abs((i - 24.+ 0.5 + lon/15.) - instru.tnode)
+          for i in range(72)
+        ]
+
+        (imin1, imin2) = np.argsort(deltaT)[0:2]
+
+        w1 = deltaT[imin1] / (deltaT[imin1] + deltaT[imin2])
+        w2 = deltaT[imin2] / (deltaT[imin1] + deltaT[imin2])
+
+        idx_lon_l[idx] = imin1
+        idx_lon_r[idx] = imin2
+        weight_l[idx]  = w2
+        weight_r[idx]  = w1
+
+        offset = (date_prev.day - 1) *24
+        count = 3 * 24
+        times = nc_grid.time[offset:offset+count]
+        # print(times.shape)
+
+        # print(times[imin1], times[imin2])
+        # print(
+        #   idx, lon, 
+        #   cf.num2date(
+        #     times[imin1],
+        #     units=nc_grid.tunits,
+        #     calendar=nc_grid.calendar,  # 'standard',
+        #     only_use_cftime_datetimes=False,  #True,
+        #     only_use_python_datetimes=True,  # False,
+        #     has_year_zero=None
+        #   ),
+        #   cf.num2date(
+        #     times[imin2],
+        #     units=nc_grid.tunits,
+        #     calendar=nc_grid.calendar,  # 'standard',
+        #     only_use_cftime_datetimes=False,  #True,
+        #     only_use_python_datetimes=True,  # False,
+        #     has_year_zero=None
+        #   ),
+        # )
+
+        date1 = cf.num2date(
+          times[imin1],
+          units=nc_grid.tunits,
+          calendar=nc_grid.calendar,  # 'standard',
+          only_use_cftime_datetimes=False,  #True,
+          only_use_python_datetimes=True,  # False,
+          has_year_zero=None
+        )
+
+        date2 = cf.num2date(
+          times[imin2],
+          units=nc_grid.tunits,
+          calendar=nc_grid.calendar,  # 'standard',
+          only_use_cftime_datetimes=False,  #True,
+          only_use_python_datetimes=True,  # False,
+          has_year_zero=None
+        )
+
+
+
+        # hours = 72.345
+        # seconds = hours * 3600
+        H = instru.tnode
+        # H = 1.001
+        (m, s) = divmod(H * 3600, 60)
+        (h, m) = divmod(m, 60)
+
+        # print(F"{int(h):02d}:{int(m):02d}:{s:08.5f}")
+        t_local = date_curr + dt.timedelta(hours=instru.tnode)
+
+        t_utc = t_local  - dt.timedelta(hours=0.5+lon/15.)
+        # print(t_utc)
+        t_min = t_utc.replace(minute=0, second=0, microsecond=0)
+        t_max = t_min + dt.timedelta(hours=1)
+
+        delta_min = (t_utc - t_min).total_seconds()
+        delta_max = (t_max - t_utc).total_seconds()
+        w_min = 1. - (delta_min / (delta_min + delta_max))
+        w_max = 1. - (delta_max / (delta_min + delta_max))
+
+
+        (i_min, i_max) = (
+          d.hour + 24 * (d.day - 1) for d in (t_min, t_max)
+        )
+
+        times = nc_grid.time[i_min:i_max+1]
+        date_min = cf.num2date(
+          times[0],
+          units=nc_grid.tunits,
+          calendar=nc_grid.calendar,  # 'standard',
+          only_use_cftime_datetimes=False,  #True,
+          only_use_python_datetimes=True,  # False,
+          has_year_zero=None
+        )
+
+        date_max = cf.num2date(
+          times[1],
+          units=nc_grid.tunits,
+          calendar=nc_grid.calendar,  # 'standard',
+          only_use_cftime_datetimes=False,  #True,
+          only_use_python_datetimes=True,  # False,
+          has_year_zero=None
+        )
+
+
+
+
+        f.write(
+          F"{lon:7.2f}  "
+          F"({imin1:02d}, {imin2:02d})  "
+          F"({deltaT[imin1]:4.2f}, {deltaT[imin2]:4.2f})  =>  "
+          F"({w2:4.2f} * {date1:%Y-%m-%d_%Hh}) + "
+          F"({w1:4.2f} * {date2:%Y-%m-%d_%Hh})   "
+          # F"{t_min:%Y-%m-%d_%Hh} < "
+          # F"{t_utc} < "
+          # F"{t_max:%Y-%m-%d_%Hh}  "
+          # F"{(t_utc - t_min).total_seconds()} "
+          # F"{(t_max - t_utc).total_seconds()}  "
+          F"({w_min:4.2f} * {date_min:%Y-%m-%d_%Hh}) + "
+          F"({w_max:4.2f} * {date_max:%Y-%m-%d_%Hh})   "
+          # F"{w_min:4.2f} {w_max:4.2f} "
+          # F"{}"
+          # F"{}"
+          F"\n"
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  exit()
+
+  # if args.runtype == 1 or args.runtype == 2 :
+  #   instrument = "AIRS_V6"
+  #   coeff_h2o = 1000.0
+  #   if args.runtype == 1:
+  #     lt_instru = 1.5
+  #     ampm = "AM"
+  #   else:
+  #     lt_instru = 13.5
+  #     ampm = "PM"
+  # else:
+  #   instrument = "IASI"
+  #   coeff_h2o = 1.0
+  #   if args.runtype == 3:
+  #     lt_instru = 9.5
+  #     ampm = "AM"
+  #   else:
+  #     lt_instru = 23.5
+  #     ampm = "PM"
+
   pl_vars = ["ta", "q"]
   sf_vars = ["sp", "skt"]
+
+  fileversion = "05"
 
   outstr = {
     "temp"  : "L2_temperature_daily_average",
@@ -704,13 +1057,12 @@ if __name__ == "__main__":
   }
 
 
-  fg_temp  = True
   fg_press = True
+  fg_temp  = True
   fg_h2o   = True
 
   # ... Files and directories ...
   # -----------------------------
-
   project_dir = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
   )
@@ -1010,9 +1362,7 @@ if __name__ == "__main__":
             # if (nc_lon[idx_lon] == -19.25 and nc_lat[idx_lat] == 17.25) or \
             #    (nc_lon[idx_lon] == -100.5 and nc_lat[idx_lat] == 14.5):
             if (idx_lat == 291 and idx_lon == 1363) or \
-               (idx_lat == 302 and idx_lon == 402) or \
-               (idx_lat == 418 and idx_lon == 1122) or \
-               (idx_lat == 429 and idx_lon == 643):
+               (idx_lat == 302 and idx_lon == 402):
               print(72*"*")
               pp.pprint(
                 F"{Psurf[idx_lat, idx_lon]} / "

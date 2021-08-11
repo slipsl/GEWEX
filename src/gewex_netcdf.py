@@ -10,22 +10,21 @@
 # ==================================================================== #
 
 # This must come first
-from __future__ import print_function, unicode_literals, division
+# from __future__ import print_function, unicode_literals, division
 
 # Standard library imports
 # ========================
-import psutil
-import os
-from pathlib import Path
-import datetime as dt
+# import psutil
+# import os
+# from pathlib import Path
+# import datetime as dt
 # from cftime import num2date, date2num
 import pprint
 
 
-import numpy as np
-import pandas as pd
-# from fortio import FortranFile
-from scipy.io import FortranFile
+# import pandas as pd
+# # from fortio import FortranFile
+# from scipy.io import FortranFile
 from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
@@ -35,168 +34,140 @@ pp = pprint.PrettyPrinter(indent=2)
 # from subroutines import *
 
 
-#######################################################################
-def get_arguments():
-  from argparse import ArgumentParser
-  from argparse import RawTextHelpFormatter
+# =====================================================================
+# =                             Classes                               =
+# =====================================================================
+class TGGrid(object):
+  # -------------------------------------------------------------------
+  def __init__(self):
+    self.loaded = False
 
-  parser = ArgumentParser(
-    formatter_class=RawTextHelpFormatter
-  )
-  # parser.add_argument("project", action="store",
-  #                     help="Project name")
-  # parser.add_argument("center", action="store",
-  #                     help="Center name (idris/tgcc)")
+  # -------------------------------------------------------------------
+  def __repr__(self):
 
-  parser.add_argument(
-    "runtype", action="store",
-    type=int,
-    choices=[1, 2, 3, 4],
-    help= "Run type:\n"
-          "  - 1 = AIRS / AM\n"
-          "  - 2 = AIRS / PM\n"
-          "  - 3 = IASI / AM\n"
-          "  - 4 = IASI / PM\n"
-  )
-  parser.add_argument(
-    "date_start", action="store",
-    type=lambda s: dt.datetime.strptime(s, '%Y%m%d'),
-    help="Start date: YYYYMMJJ"
-  )
-  parser.add_argument(
-    "date_end", action="store",
-    type=lambda s: dt.datetime.strptime(s, '%Y%m%d'),
-    help="End date: YYYYMMJJ"
-  )
+    return str(self.loaded)
 
-  parser.add_argument(
-    "-v", "--verbose", action="store_true",
-    help="verbose mode"
-  )
+  # -------------------------------------------------------------------
+  def load(self, nc_grid):
 
-  # parser.add_argument("-d", "--dryrun", action="store_true",
-  #                     help="only print what is to be done")
-  return parser.parse_args()
+    import numpy as np
+
+    self.loaded = True
+
+    # Latitude: [-90 ; +90]
+    if nc_grid.lat[0] < nc_grid.lat[-1]:
+      self.lat = nc_grid.lat
+    else:
+      self.lat = np.flip(nc_grid.lat)
+
+    # Longitude: [-180 ; +180[
+    if nc_grid.lon[0] < nc_grid.lon[-1]:
+      self.lon = nc_grid.lon
+    else:
+      self.lon = np.flip(nc_grid.lon)
+
+    # print(self.lon)
+
+    if np.all(self.lon >= 0):
+      cond = self.lon[:] > 180.
+      self.lon[cond] = self.lon[cond] - 360.
+      print(self.lon[719])
+
+      # print(
+      #   np.argmin(self.lon),
+      #   self.lon[np.argmin(self.lon)],
+      # )
+
+      idx_lon = np.argmax(self.lon) - 1
+      self.lon = np.roll(self.lon, idx_lon)
+
+    # Level: 23 levels
+      self.lev = np.ma.array(
+        [
+           69.71,  86.07, 106.27, 131.20,
+          161.99, 200.00, 222.65, 247.87,
+          275.95, 307.20, 341.99, 380.73,
+          423.85, 471.86, 525.00, 584.80,
+          651.04, 724.78, 800.00, 848.69,
+          900.33, 955.12, 1013.00,
+        ],
+        mask=False,
+      )
 
 
+# =====================================================================
+class NCGrid(object):
+  # -------------------------------------------------------------------
+  def __init__(self):
+    self.loaded = False
+
+  # -------------------------------------------------------------------
+  def __repr__(self):
+
+    if not self.loaded:
+      ret = str(self.loaded)
+    else:
+      ret = (
+        F"lat: [ {self.lat[0]} ; {self.lat[-1]} ], "
+        F"step = {self.lat[1]-self.lat[0]}, len = {self.nlat}\n"
+        F"lon: [ {self.lon[0]} ; {self.lon[-1]} ], "
+        F"step = {self.lon[1]-self.lon[0]}, len = {self.nlon}\n"
+        F"lev: {self.lev}, len = {self.nlev}"
+      )
+
+    return ret
+
+  # -------------------------------------------------------------------
+  def load(self, filenc):
+
+    print(F"Load grid from {filenc}\n"+72*"=")
+    self.loaded = True
+
+    with Dataset(filenc, "r", format="NETCDF4") as f_nc:
+      # print(f_nc)
+      # print(f_nc.dimensions["time"])
+      # print(f_nc.variables["time"])
+      self.lat = f_nc.variables["latitude"][:]
+      self.lon = f_nc.variables["longitude"][:]
+      self.lev = f_nc.variables["level"][:]
+      self.time = f_nc.variables["time"][:]
+      self.calendar = f_nc.variables["time"].calendar
+      self.tunits = f_nc.variables["time"].units
+
+    self.nlat = self.lat.size
+    self.nlon = self.lon.size
+    self.nlev = self.lev.size
+    self.ntime = self.time.size
+
+
+      # print(type(self.lat))
+      # print(self.lat.mask)
+      # print(np.ma.getmask(self.lat))
+
+
+# =====================================================================
+# =                            Functions                              =
+# =====================================================================
 #----------------------------------------------------------------------
-def print_pl(var1, var2):
+def get_ncfile(variable, dirin, date):
 
-  # print(F"{nc_lev[0]:5.2f}  {var1[0]:11.4e}")
-  # print(F"{nc_lev[1]:5.2f}  {var1[1]:11.4e}")
-  # print(F"{nc_lev[2]:5.2f}  {var1[2]:11.4e}")
-  # print(F"{nc_lev[3]:5.2f}  {var1[3]:11.4e}")
-  # print(F"{nc_lev[4]:5.2f}  {var1[4]:11.4e}")
-  # print(F"{nc_lev[5]:5.2f}  {var1[5]:11.4e}")
-  # print(F"{nc_lev[6]:5.2f}  {var1[6]:11.4e}")
-  # print(F"{nc_lev[7]:5.2f}  {var1[7]:11.4e}")
-  print(F"{nc_lev[8]:6.2f}  {var1[8]:11.4e}")
-  print(F"{18*' '}  {var2[0]:11.4e}  {P_tigr[0]:6.2f}")
-  print(F"{nc_lev[9]:6.2f}  {var1[9]:11.4e}")
-  print(F"{18*' '}  {var2[1]:11.4e}  {P_tigr[1]:6.2f}")
-  print(F"{nc_lev[10]:6.2f}  {var1[10]:11.4e}")
-  print(F"{18*' '}  {var2[2]:11.4e}  {P_tigr[2]:6.2f}")
-  print(F"{nc_lev[11]:6.2f}  {var1[11]:11.4e}")
-  print(F"{18*' '}  {var2[3]:11.4e}  {P_tigr[3]:6.2f}")
-  print(F"{nc_lev[12]:6.2f}  {var1[12]:11.4e}")
-  print(F"{18*' '}  {var2[4]:11.4e}  {P_tigr[4]:6.2f}")
-  print(F"{nc_lev[13]:6.2f}  {var1[13]:11.4e}")
-  print(
-    F"{nc_lev[14]:6.2f}  {var1[14]:11.4e}   "
-    F"{var2[5]:11.4e}  {P_tigr[5]:6.2f}"
-  )
-  print(F"{18*' '}  {var2[6]:11.4e}  {P_tigr[6]:6.2f}")
-  print(F"{nc_lev[15]:6.2f}  {var1[15]:11.4e}")
-  print(F"{18*' '}  {var2[7]:11.4e}  {P_tigr[7]:6.2f}")
-  print(F"{nc_lev[16]:6.2f}  {var1[16]:11.4e}")
-  print(F"{18*' '}  {var2[8]:11.4e}  {P_tigr[8]:6.2f}")
-  print(F"{nc_lev[17]:6.2f}  {var1[17]:11.4e}")
-  print(F"{18*' '}  {var2[9]:11.4e}  {P_tigr[9]:6.2f}")
-  print(F"{18*' '}  {var2[10]:11.4e}  {P_tigr[10]:6.2f}")
-  print(F"{nc_lev[18]:6.2f}  {var1[18]:11.4e}")
-  print(F"{18*' '}  {var2[11]:11.4e}  {P_tigr[11]:6.2f}")
-  print(F"{nc_lev[19]:6.2f}  {var1[19]:11.4e}")
-  print(F"{18*' '}  {var2[12]:11.4e}  {P_tigr[12]:6.2f}")
-  print(F"{nc_lev[20]:6.2f}  {var1[20]:11.4e}")
-  print(F"{18*' '}  {var2[13]:11.4e}  {P_tigr[13]:6.2f}")
-  print(F"{nc_lev[21]:6.2f}  {var1[21]:11.4e}")
-  print(F"{18*' '}  {var2[14]:11.4e}  {P_tigr[14]:6.2f}")
-  print(F"{nc_lev[22]:6.2f}  {var1[22]:11.4e}")
-  print(F"{18*' '}  {var2[15]:11.4e}  {P_tigr[15]:6.2f}")
-  print(F"{nc_lev[23]:6.2f}  {var1[23]:11.4e}")
-  print(F"{nc_lev[24]:6.2f}  {var1[24]:11.4e}")
-  print(F"{18*' '}  {var2[16]:11.4e}  {P_tigr[16]:6.2f}")
-  print(F"{nc_lev[25]:6.2f}  {var1[25]:11.4e}")
-  print(F"{18*' '}  {var2[17]:11.4e}  {P_tigr[17]:6.2f}")
-  print(F"{nc_lev[26]:6.2f}  {var1[26]:11.4e}")
-  print(F"{nc_lev[27]:6.2f}  {var1[27]:11.4e}")
-  print(
-    F"{nc_lev[28]:6.2f}  {var1[28]:11.4e}   "
-    F"{var2[18]:11.4e}  {P_tigr[18]:6.2f}"
-    )
-  print(F"{nc_lev[29]:6.2f}  {var1[29]:11.4e}")
-  print(F"{18*' '}  {var2[19]:11.4e}  {P_tigr[19]:6.2f}")
-  print(F"{nc_lev[30]:6.2f}  {var1[30]:11.4e}")
-  print(F"{nc_lev[31]:6.2f}  {var1[31]:11.4e}")
-  print(F"{nc_lev[32]:6.2f}  {var1[32]:11.4e}")
-  print(F"{18*' '}  {var2[20]:11.4e}  {P_tigr[20]:6.2f}")
-  print(F"{nc_lev[33]:6.2f}  {var1[33]:11.4e}")
-  print(F"{nc_lev[34]:6.2f}  {var1[34]:11.4e}")
-  print(F"{18*' '}  {var2[21]:11.4e}  {P_tigr[21]:6.2f}")
-  print(F"{nc_lev[35]:6.2f}  {var1[35]:11.4e}")
-  print(F"{nc_lev[36]:6.2f}  {var1[36]:11.4e}")
-  print(F"{18*' '}  {var2[22]:11.4e}  {P_tigr[22]:6.2f}")
+  # dirin_3d = dirin.joinpath("AN_PL")
+  # dirin_2d = dirin.joinpath("AN_SF")
 
-
-#----------------------------------------------------------------------
-def freemem():
-
-  # you can calculate percentage of available memory
-  print(
-    F"Free memory = "
-    F"{psutil.virtual_memory().available * 100 / psutil.virtual_memory().total:6.2f}"
-    F"%"
-  )
-
-
-# #----------------------------------------------------------------------
-# def date2num(val):
-
-#   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
-
-
-#----------------------------------------------------------------------
-def num2date(val):
-
-  return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
-
-
-# #----------------------------------------------------------------------
-# def date2num(val):
-
-#   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
-
-
-#----------------------------------------------------------------------
-def get_filein(varname, date_curr):
-
-  # if varname == "ta" or varname == "q":
-  if varname in pl_vars:
-    vartype = "ap1e5"
-    pathin = dirin_pl
-  # elif varname == "sp" or varname == "skt":
-  elif varname in sf_vars:
+  if variable.mode == "2d":
+    subdir = "AN_SF"
     vartype = "as1e5"
-    pathin = dirin_sf
+  elif variable.mode == "3d":
+    subdir = "AN_PL"
+    vartype = "ap1e5"
+  else:
+    raise(F"Undefined variable {variable}")
 
-  # yyyymm = dt.datetime.strftime(date_curr, "%Y%m")
-
-  # return F"{varname}.{yyyymm}.{vartype}.GLOBAL_025.nc"
   return (
-    os.path.join(
-      pathin,
-      F"{date_curr:%Y}",
-      F"{varname}.{date_curr:%Y%m}.{vartype}.GLOBAL_025.nc",
+    dirin.joinpath(
+      subdir,
+      F"{date:%Y}",
+      F"{variable.ncvar}.{date:%Y%m}.{vartype}.GLOBAL_025.nc",
     )
   )
 
@@ -359,8 +330,7 @@ def read_var_info(filename, varname):
 def def_slice(
   cnt_tim,   cnt_lat,   cnt_lon,   cnt_lev=0,
   off_tim=0, off_lat=0, off_lon=0, off_lev=0,
-  stp_tim=None, stp_lat=None, stp_lon=None, stp_lev=None,
-):
+  stp_tim=None, stp_lat=None, stp_lon=None, stp_lev=None, ):
 
   if cnt_lev:
     ret = [
@@ -1010,9 +980,7 @@ if __name__ == "__main__":
             # if (nc_lon[idx_lon] == -19.25 and nc_lat[idx_lat] == 17.25) or \
             #    (nc_lon[idx_lon] == -100.5 and nc_lat[idx_lat] == 14.5):
             if (idx_lat == 291 and idx_lon == 1363) or \
-               (idx_lat == 302 and idx_lon == 402) or \
-               (idx_lat == 418 and idx_lon == 1122) or \
-               (idx_lat == 429 and idx_lon == 643):
+               (idx_lat == 302 and idx_lon == 402):
               print(72*"*")
               pp.pprint(
                 F"{Psurf[idx_lat, idx_lon]} / "
@@ -1157,21 +1125,3 @@ if __name__ == "__main__":
   print(f"Run ended in {dt.datetime.now() - run_deb}")
 
   exit()
-
-# ********************************************************************************
-# 1020.802890625 [3.78422374e-06 3.26374834e-06 3.12803695e-06 3.46509478e-06
-#  3.40062434e-06 3.16598926e-06 2.76479523e-06 2.76553055e-06
-#  2.59047783e-06 2.35205493e-06 1.61622961e-06 2.52195787e-06
-#  3.09501547e-06 4.23539404e-06 6.26800693e-06 1.05665367e-05
-#  1.38216419e-05 2.38398079e-05 5.61349189e-05 8.99301958e-05
-#  1.06964842e-04 8.09465200e-05 1.16594922e-04 1.27383886e-04
-#  1.82292948e-04 1.11144455e-03 2.20645498e-03 2.18914961e-03
-#  1.93020550e-03 1.35288876e-03 1.28993182e-03 2.40233284e-03
-#  8.39262921e-03 1.12019610e-02 1.14798825e-02 1.15118129e-02
-#  1.15749948e-02] [2.35551207e-06 1.95789784e-06 1.84338626e-06 2.66407615e-06
-#  3.64194104e-06 6.26800693e-06 1.01624749e-05 1.35443070e-05
-#  1.90210701e-05 2.84903039e-05 5.09612421e-05 7.69054961e-05
-#  9.80557223e-05 9.55896319e-05 9.87707208e-05 1.24104041e-04
-#  2.01619301e-04 1.65413172e-03 1.93020550e-03 1.29323077e-03
-#  8.42971239e-03 1.14864219e-02 1.15749948e-02]
-# ********************************************************************************
