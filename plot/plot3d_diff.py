@@ -13,6 +13,7 @@ import numpy as np
 from scipy.io import FortranFile
 # import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib import colors
 # from mpl_toolkits.basemap import Basemap
 from netCDF4 import Dataset
 import pprint
@@ -78,7 +79,8 @@ def write_comment(ax, Z):
 
   ax.text(
     0.98, 0.02,
-    F"m = {Z.mean():5.2f} / $\sigma$ = {Z.std():5.2f}",
+    F"m = {Z.mean():.2e} / $\sigma$ = {Z.std():.2e}",
+    # F"m = {Z.mean():5.2f} / $\sigma$ = {Z.std():5.2f}",
     fontsize=8,
     ha="right",
     va="center",
@@ -87,7 +89,7 @@ def write_comment(ax, Z):
   ax.text(
     0.98, 0.96,
     # F"min = {Z.min():5.2f} / max = {Z.max():5.2f}",
-    F"{Z.min():5.2f} < $\Delta$ < {Z.max():5.2f}",
+    F"{Z.min():.2e} < $\Delta$ < {Z.max():.2e}",
     fontsize=8,
     ha="right",
     va="center",
@@ -100,12 +102,16 @@ def write_comment(ax, Z):
 project_dir = Path(__file__).resolve().parents[1]
 dir_img = project_dir.joinpath("img")
 
-img_name = "H2O_diff"
+varname = "temp"
+# varname = "H2O"
+
+img_name = F"{varname}_diff"
 
 cmap_plot = "coolwarm"
 cmap_diff = "seismic"
 
-coeff_h2o = 1000.
+# divnorm=colors.TwoSlopeNorm(vmin=-5., vcenter=0., vmax=6.2)
+divnorm = colors.TwoSlopeNorm(vcenter=0.)
 
 # fig, (ax1, ax2, ax3) = plt.subplots(
 fig, ((ax1, ax4, ax7), (ax2, ax5, ax8), (ax3, ax6, ax9)) = \
@@ -136,6 +142,8 @@ lev = np.array([
    900.33, 955.12,
   1013.00,
 ])
+if varname == "temp":
+  lev = np.append(lev, [2000., 3000.])
 nlev = len(lev)
 
 pl = {
@@ -144,31 +152,55 @@ pl = {
    800: {"nc": 28, "f77": 18},
    900: {"nc": 32, "f77": 20},
   1000: {"nc": 36, "f77": 22},
+  2000: {"nc": 36, "f77": 23},
+  3000: {"nc": 36, "f77": 24},
 }
+
+
+pl1 = 1000
+pl2 = 2000
+pl3 = 3000
+# pl1 =  200
+# pl2 =  650
+# pl3 = 1000
+
 
 # cond = lon < 0.
 # lon[cond] = lon[cond] + 360.  # 0. <= lon < 360.
 
+if varname == "H2O":
+  var_nc = "q"
+  var_f77 = "h2o"
+  coeff_h2o = 1000.
+  title = "Humidité spécifique"
+  subtitle = "Q"
+else:
+  var_nc = "ta"
+  var_f77 = "temperature"
+  coeff_h2o = 1.
+  title = "Température"
+  subtitle = "T"
+
 dirnc = Path(os.path.join("input", "AN_PL", "2008"))
 filenc = dirnc.joinpath(
-  "q.200802.ap1e5.GLOBAL_025.nc"
+  F"{var_nc}.200802.ap1e5.GLOBAL_025.nc"
 )
 
-fileout = "unmasked_ERA5_AIRS_V6_L2_H2O_daily_average.20080220.AM_05"
+fileout = F"unmasked_ERA5_AIRS_V6_L2_{var_f77}_daily_average.20080220.AM_05"
 dirold = Path(os.path.join("output", "exemples"))
 fileold = dirold.joinpath(fileout)
 dirnew = Path(os.path.join("output", "2008", "02"))
 filenew = dirnew.joinpath(fileout)
 
 
-print(F"Read 200hPa\n{80*'='}")
+print(F"Read {pl1}hPa\n{80*'='}")
 # ========================
 print(" - netcdf")
-Pnc = read_netcdf(filenc, "q", pl[200]["nc"])
+Pnc = read_netcdf(filenc, var_nc, pl[pl1]["nc"])
 print(" - original output file")
-Pold = read_f77(fileold, pl[200]["f77"])
+Pold = read_f77(fileold, pl[pl1]["f77"])
 print(" - new output file")
-Pnew = read_f77(filenew, pl[200]["f77"])
+Pnew = read_f77(filenew, pl[pl1]["f77"])
 
 print("Prepare data old-new")
 # ========================
@@ -176,12 +208,17 @@ print("Prepare data old-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im1 = ax1.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im1 = ax1.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb1 = fig.colorbar(im1, ax=ax1)
-ax1.set_title("old - new\n(200hPa)")
+ax1.set_title(F"old - new\n({pl1}hPa)")
 write_comment(ax1, Z)
 
 print("Prepare data nc-old")
@@ -190,12 +227,17 @@ print("Prepare data nc-old")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im2 = ax2.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im2 = ax2.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb2 = fig.colorbar(im2, ax=ax2)
-ax2.set_title("nc - old\n(200hPa)")
+ax2.set_title(F"nc - old\n({pl1}hPa)")
 write_comment(ax2, Z)
 
 print("Prepare data nc-new")
@@ -204,23 +246,28 @@ print("Prepare data nc-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im3 = ax3.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im3 = ax3.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb3 = fig.colorbar(im3, ax=ax3)
-ax3.set_title("nc - new\n(200hPa)")
+ax3.set_title(F"nc - new\n({pl1}hPa)")
 write_comment(ax3, Z)
 
 
-print(F"Read 650hPa\n{80*'='}")
+print(F"Read {pl2}hPa\n{80*'='}")
 # ========================
 print(" - netcdf")
-Pnc = read_netcdf(filenc, "q", pl[650]["nc"])
+Pnc = read_netcdf(filenc, var_nc, pl[pl2]["nc"])
 print(" - original output file")
-Pold = read_f77(fileold, pl[650]["f77"])
+Pold = read_f77(fileold, pl[pl2]["f77"])
 print(" - new output file")
-Pnew = read_f77(filenew, pl[650]["f77"])
+Pnew = read_f77(filenew, pl[pl2]["f77"])
 
 print("Prepare data old-new")
 # ========================
@@ -228,12 +275,17 @@ print("Prepare data old-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im4 = ax4.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im4 = ax4.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb4 = fig.colorbar(im4, ax=ax4)
-ax4.set_title("(650hPa)")
+ax4.set_title(F"({pl2}hPa)")
 write_comment(ax4, Z)
 
 print("Prepare data nc-old")
@@ -242,12 +294,17 @@ print("Prepare data nc-old")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im5 = ax5.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im5 = ax5.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb5 = fig.colorbar(im5, ax=ax5)
-ax5.set_title("(650hPa)")
+ax5.set_title(F"({pl2}hPa)")
 write_comment(ax5, Z)
 
 print("Prepare data nc-new")
@@ -256,23 +313,28 @@ print("Prepare data nc-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im6 = ax6.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im6 = ax6.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb6 = fig.colorbar(im6, ax=ax6)
-ax6.set_title("(650hPa)")
+ax6.set_title(F"({pl2}hPa)")
 write_comment(ax6, Z)
 
 
-print(F"Read 1000hPa\n{80*'='}")
+print(F"Read {pl3}hPa\n{80*'='}")
 # ========================
 print(" - netcdf")
-Pnc = read_netcdf(filenc, "q", pl[1000]["nc"])
+Pnc = read_netcdf(filenc, var_nc, pl[pl3]["nc"])
 print(" - original output file")
-Pold = read_f77(fileold, pl[1000]["f77"])
+Pold = read_f77(fileold, pl[pl3]["f77"])
 print(" - new output file")
-Pnew = read_f77(filenew, pl[1000]["f77"])
+Pnew = read_f77(filenew, pl[pl3]["f77"])
 
 print("Prepare data old-new")
 # ========================
@@ -280,12 +342,17 @@ print("Prepare data old-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im7 = ax7.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im7 = ax7.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb7 = fig.colorbar(im7, ax=ax7)
-ax7.set_title("(1000hPa)", fontsize=10,)
+ax7.set_title(F"({pl3}hPa)", fontsize=10,)
 write_comment(ax7, Z)
 
 print("Prepare data nc-old")
@@ -294,12 +361,17 @@ print("Prepare data nc-old")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im8 = ax8.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im8 = ax8.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb8 = fig.colorbar(im8, ax=ax8)
-ax8.set_title("(1000hPa)")
+ax8.set_title(F"({pl3}hPa)")
 write_comment(ax8, Z)
 
 print("Prepare data nc-new")
@@ -308,18 +380,23 @@ print("Prepare data nc-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im9 = ax9.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im9 = ax9.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb9 = fig.colorbar(im9, ax=ax9)
-ax9.set_title("(1000hPa)")
+ax9.set_title(F"({pl3}hPa)")
 write_comment(ax9, Z)
 
 
 print("Plot config")
 # ========================
-plt.suptitle(F"Humidité spécifique")
+plt.suptitle(title)
 now = dt.datetime.now()
 fig.text(
   0.98, 0.02,
@@ -366,7 +443,7 @@ plt.subplots_adjust(
   hspace=0.300,  # 0.200    amount of height reserved for space between subplots
 )
 
-print(F"Save fig {now:%d/%m/%Y %H:%M:%S}")
+print(F"Save fig {img_name}.png {now:%d/%m/%Y %H:%M:%S}")
 # ========================
 # plt.show()
 fig.savefig(

@@ -79,12 +79,13 @@ def prep_data(var_out):
 project_dir = Path(__file__).resolve().parents[1]
 dir_img = project_dir.joinpath("img")
 
-img_name = "H2O_plot"
+varname = "temp"
+# varname = "H2O"
+
+img_name = F"{varname}_plot"
 
 cmap_plot = "coolwarm"
 cmap_diff = "seismic"
-
-coeff_h2o = 1000.
 
 # fig, (ax1, ax2, ax3) = plt.subplots(
 fig, ((ax1, ax4, ax7), (ax2, ax5, ax8), (ax3, ax6, ax9)) = \
@@ -115,6 +116,8 @@ lev = np.array([
    900.33, 955.12,
   1013.00,
 ])
+if varname == "temp":
+  lev = np.append(lev, [2000., 3000.])
 nlev = len(lev)
 
 pl = {
@@ -123,27 +126,46 @@ pl = {
    800: {"nc": 28, "f77": 18},
    900: {"nc": 32, "f77": 20},
   1000: {"nc": 36, "f77": 22},
+  2000: {"nc": 36, "f77": 23},
+  3000: {"nc": 36, "f77": 24},
 }
 
 # cond = lon < 0.
 # lon[cond] = lon[cond] + 360.  # 0. <= lon < 360.
 
+if varname == "H2O":
+  var_nc = "q"
+  var_f77 = "h2o"
+  coeff_h2o = 1000.
+  title = "Humidité spécifique"
+  subtitle = "Q"
+else:
+  var_nc = "ta"
+  var_f77 = "temperature"
+  coeff_h2o = 1.
+  title = "Température"
+  subtitle = "T"
+
 dirnc = Path(os.path.join("input", "AN_PL", "2008"))
 filenc = dirnc.joinpath(
-  "q.200802.ap1e5.GLOBAL_025.nc"
+  F"{var_nc}.200802.ap1e5.GLOBAL_025.nc"
 )
 
-fileout = "unmasked_ERA5_AIRS_V6_L2_H2O_daily_average.20080220.AM_05"
+fileout = F"unmasked_ERA5_AIRS_V6_L2_{var_f77}_daily_average.20080220.AM_05"
 dirold = Path(os.path.join("output", "exemples"))
 fileold = dirold.joinpath(fileout)
 dirnew = Path(os.path.join("output", "2008", "02"))
 filenew = dirnew.joinpath(fileout)
 
-
+print(
+  F"{filenc}\n"
+  F"{fileold}\n"
+  F"{filenew}\n"
+)
 
 print("Read netcdf")
 # ========================
-Pnc = read_netcdf(filenc, "q", pl[200]["nc"])
+Pnc = read_netcdf(filenc, var_nc, pl[200]["nc"])
 
 print("Prepare data")
 # ========================
@@ -154,29 +176,29 @@ print("Plot data")
 # ax2.subplot(312)
 im1 = ax1.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
 cb1 = fig.colorbar(im1, ax=ax1)
-ax1.set_title("Q_netcdf (200hPa)")
+ax1.set_title(F"{subtitle}_netcdf (200hPa)")
 
 print("Read netcdf")
 # ========================
-Pnc = read_netcdf(filenc, "q", pl[650]["nc"])
+Pnc = read_netcdf(filenc, var_nc, pl[650]["nc"])
 
 print("Prepare data")
 # ========================
 (X, Y, Z) = prep_data(Pnc)
 im4 = ax4.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
 cb4 = fig.colorbar(im4, ax=ax4)
-ax4.set_title("Q_netcdf (650hPa)")
+ax4.set_title(F"(650hPa)")
 
 print("Read netcdf")
 # ========================
-Pnc = read_netcdf(filenc, "q", pl[1000]["nc"])
+Pnc = read_netcdf(filenc, var_nc, pl[1000]["nc"])
 
 print("Prepare data")
 # ========================
 (X, Y, Z) = prep_data(Pnc)
 im7 = ax7.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
 cb7 = fig.colorbar(im7, ax=ax7)
-ax7.set_title("Q_netcdf (1000hPa)")
+ax7.set_title(F"(1000hPa)")
 
 
 print("Read original output file")
@@ -191,7 +213,7 @@ print("Plot data")
 # ========================
 im2 = ax2.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
 cb2 = fig.colorbar(im2, ax=ax2)
-ax2.set_title("Q_ori (200.00hPa)")
+ax2.set_title(F"{subtitle}_ori (200.00hPa)")
 
 print("Read original output file")
 # ========================
@@ -234,7 +256,7 @@ print("Plot data")
 # ========================
 im3 = ax3.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
 cb3 = fig.colorbar(im3, ax=ax3)
-ax3.set_title("Q_new (200.00hPa)")
+ax3.set_title(F"{subtitle}_new (200.00hPa)")
 
 print("Read new output file")
 # ========================
@@ -267,7 +289,8 @@ ax9.set_title("(1013.00hPa)")
 
 print("Plot config")
 # ========================
-plt.suptitle(F"Humidité spécifique")
+plt.suptitle(title)
+# plt.suptitle(F"Humidité spécifique")
 now = dt.datetime.now()
 fig.text(
   0.98, 0.02,

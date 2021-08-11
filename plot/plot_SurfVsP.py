@@ -13,6 +13,7 @@ import numpy as np
 from scipy.io import FortranFile
 # import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib import colors
 # from mpl_toolkits.basemap import Basemap
 from netCDF4 import Dataset
 import pprint
@@ -181,23 +182,40 @@ print("Prepare data old-new")
 # ========================
 (X, Y, Z) = prep_data(Qold - Qnew)
 print(
-  Z.mean(), Z.std()
+  Z.min(), Z.max(), Z.mean(), Z.std()
 )
 
-cond = abs(Z) > 0.1
+print(72*"*")
+cond = abs(Z) > 0.2
 pp.pprint(
-  X[cond],
+  F"X = {X[cond]}",
 )
 pp.pprint(
-  Y[cond],
+  F"Y = {Y[cond]}",
 )
 pp.pprint(
-  Z[cond],
+  F"Z = {Z[cond]}",
 )
+
+print(Qold[429, 643], Qnew[429, 643], lat[429], lon[643])
+print(Qold[418, 1122], Qnew[418, 1122], lat[418], lon[1122])
+# print(Qold[291, 1363], Qnew[291, 1363])
+# print(Qold[302, 402], Qnew[302, 402])
+
+print(72*"*")
+
+
+divnorm=colors.TwoSlopeNorm(vmin=-5., vcenter=0., vmax=6.2)
+# pcolormesh(your_data, cmap="coolwarm", norm=divnorm)
 
 print("Plot data")
 # ========================
-im1 = ax1.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, marker=".")
+im1 = ax1.scatter(
+  x=X, y=Y, c=Z,
+  marker="o",
+  cmap=cmap_diff,
+  norm=divnorm,
+)
 cb1 = fig.colorbar(im1, ax=ax1)
 ax1.set_title("old - new\n(1013hPa)")
 # ax1.contour(
@@ -287,7 +305,7 @@ im3 = ax3.contour(
 # write_comment(ax3, Z)
 
 
-# print(F"Read 650hPa\n{80*'='}")
+# print(F"Read 650hPa\n{72*"="}")
 # # ========================
 # print(" - netcdf")
 # Pnc = read_netcdf(filenc, "q", pl[650]["nc"])
@@ -339,7 +357,7 @@ im3 = ax3.contour(
 # write_comment(ax6, Z)
 
 
-# print(F"Read 1000hPa\n{80*'='}")
+# print(F"Read 1000hPa\n{72*"="}")
 # # ========================
 # print(" - netcdf")
 # Pnc = read_netcdf(filenc, "q", pl[1000]["nc"])
