@@ -47,7 +47,7 @@ class InstruParam(object):
       2: {"name": "AIRS_V6", "f_q": 1.e3, "tnode": 13.5, "ampm": "PM"},
       3: {"name": "IASI",    "f_q": 1.,   "tnode":  9.5, "ampm": "AM"},
       4: {"name": "IASI",    "f_q": 1.,   "tnode": 23.5, "ampm": "PM"},
-      5: {"name": "AIRS_V6", "f_q": 1.e3, "tnode":  0.0, "ampm": "AM"},
+      5: {"name": "TEST",    "f_q": 1.e3, "tnode":  0.0, "ampm": "AM"},
       # 1: {"name": "AIRS_V6", "f_q": 1.e3, "f_p": 100., "tnode":  1.5, "ampm": "AM"},
       # 2: {"name": "AIRS_V6", "f_q": 1.e3, "f_p": 100., "tnode": 13.5, "ampm": "PM"},
       # 3: {"name": "IASI",    "f_q": 1.,   "f_p": 100., "tnode":  9.5, "ampm": "AM"},

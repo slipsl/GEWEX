@@ -1153,7 +1153,7 @@ if __name__ == "__main__":
 
     # date_curr = date_curr + dt.timedelta(days=1)
 
-  print("\n"+72*"=")
+  print(F"\n{72*'='}")
   print(f"Run ended in {dt.datetime.now() - run_deb}")
 
   exit()

@@ -54,11 +54,13 @@ def get_arguments():
     "runtype", action="store",
     type=int,
     choices=[1, 2, 3, 4, 5],
-    help= "Run type:\n"
-          "  - 1 = AIRS / AM\n"
-          "  - 2 = AIRS / PM\n"
-          "  - 3 = IASI / AM\n"
-          "  - 4 = IASI / PM\n"
+    help=(
+      "Run type:\n"
+      "  - 1 = AIRS / AM\n"
+      "  - 2 = AIRS / PM\n"
+      "  - 3 = IASI / AM\n"
+      "  - 4 = IASI / PM\n"
+    )
   )
   parser.add_argument(
     "date_start", action="store",
@@ -73,7 +75,17 @@ def get_arguments():
 
   parser.add_argument(
     "-v", "--verbose", action="store_true",
-    help="verbose mode"
+    help="Verbose mode"
+  )
+
+  parser.add_argument(
+    "-f", "--force", action="store_true",
+    help="If output files exsist, replace them."
+  )
+
+  parser.add_argument(
+    "-p", "--poids", action="store_true",
+    help="Produce weight file."
   )
 
   # parser.add_argument("-d", "--dryrun", action="store_true",
@@ -179,6 +191,71 @@ def freemem():
 
 
 #----------------------------------------------------------------------
+def lon2tutc(lon, date, tnode):
+
+  # # Convert local time in decimal hours to hh:mm:ss
+  # (m, s) = divmod(tnode * 3600, 60)
+  # (h, m) = divmod(m, 60)
+
+  if lon >= 360.:
+    lon = lon - 360.
+  t_local = date + dt.timedelta(hours=tnode)
+
+  offset = 0.5
+
+  return t_local  - dt.timedelta(hours=(offset + lon/15.))
+
+
+#----------------------------------------------------------------------
+def dt_bounds(date, mode="full"):
+
+  if mode not in ["date", "weight", "full"]:
+    raise("Invalid argument")
+
+  date_min = date.replace(minute=0, second=0, microsecond=0)
+  date_max = date_min + dt.timedelta(hours=1)
+
+  delta_min = (date - date_min).total_seconds()
+  delta_max = (date_max - date).total_seconds()
+
+  weight_min = 1. - (delta_min / (delta_min + delta_max))
+  weight_max = 1. - (delta_max / (delta_min + delta_max))
+
+  if mode == "date":
+    ret = (date_min, date_max, )
+  elif mode == "weight":
+    ret = (weight_min, weight_max, )
+  else:
+    ret = (
+      (date_min, weight_min),
+      (date_max, weight_max)
+    )
+
+  return ret
+
+
+#----------------------------------------------------------------------
+def dt_idx(dates):
+
+  step = 24  # netcdf number of time steps per day
+
+  return (d.hour + 24 * (d.day - 1) for d in dates)
+
+
+#----------------------------------------------------------------------
+def dt_weight(date):
+
+  (date_min, date_max) = dt_bounds(date)
+  delta_min = (date - date_min).total_seconds()
+  delta_max = (date_max - date).total_seconds()
+
+  weight_min = 1. - (delta_min / (delta_min + delta_max))
+  weight_max = 1. - (delta_max / (delta_min + delta_max))
+
+  return (weight_min, weight_max)
+
+
+#----------------------------------------------------------------------
 def iter_dates(start, stop):
 
   # # a generator that yields items instead of returning a list
@@ -197,11 +274,18 @@ def iter_dates(start, stop):
   return (start + dt.timedelta(days=i) for i in range(delta))
 
 
-
 #----------------------------------------------------------------------
 def num2date(val):
 
-  return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
+  # return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
+  return cf.num2date(
+    val,
+    units=nc_grid.tunits,
+    calendar=nc_grid.calendar,  # 'standard',
+    only_use_cftime_datetimes=False,  #True,
+    only_use_python_datetimes=True,  # False,
+    has_year_zero=None
+  )
 
 
 #----------------------------------------------------------------------
@@ -738,20 +822,17 @@ if __name__ == "__main__":
     outfiles = []
 
     Psurf = gw.Variable("Psurf", instru)
-    ncfiles.append(gnc.get_ncfile(Psurf, dirin, date_prev))
-    ncfiles.append(gnc.get_ncfile(Psurf, dirin, date_curr))
-    ncfiles.append(gnc.get_ncfile(Psurf, dirin, date_next))
+    for date in (date_prev, date_curr, date_next):
+      ncfiles.append(gnc.get_ncfile(Psurf, dirin, date))
     outfiles.append(Psurf.pathout(dirout, date_curr))
 
     if fg_temp:
       Tsurf = gw.Variable("Tsurf", instru)
-      ncfiles.append(gnc.get_ncfile(Tsurf, dirin, date_prev))
-      ncfiles.append(gnc.get_ncfile(Tsurf, dirin, date_curr))
-      ncfiles.append(gnc.get_ncfile(Tsurf, dirin, date_next))
+      for date in (date_prev, date_curr, date_next):
+        ncfiles.append(gnc.get_ncfile(Tsurf, dirin, date))
       T = gw.Variable("temp", instru)
-      ncfiles.append(gnc.get_ncfile(T, dirin, date_prev))
-      ncfiles.append(gnc.get_ncfile(T, dirin, date_curr))
-      ncfiles.append(gnc.get_ncfile(T, dirin, date_next))
+      for date in (date_prev, date_curr, date_next):
+        ncfiles.append(gnc.get_ncfile(T, dirin, date))
       outfiles.append(T.pathout(dirout, date_curr))
 
       stat = gw.Variable("stat", instru)
@@ -759,69 +840,25 @@ if __name__ == "__main__":
 
     if fg_h2o:
       Q = gw.Variable("h2o", instru)
-      ncfiles.append(gnc.get_ncfile(Q, dirin, date_prev))
-      ncfiles.append(gnc.get_ncfile(Q, dirin, date_curr))
-      ncfiles.append(gnc.get_ncfile(Q, dirin, date_next))
+      for date in (date_prev, date_curr, date_next):
+        ncfiles.append(gnc.get_ncfile(Q, dirin, date))
       outfiles.append(Q.pathout(dirout, date_curr))
 
+    # # ... Check input files ...
+    # # -------------------------
+    # ncfiles = np.unique(ncfiles)
+    # filesok = [f.exists() for f in ncfiles]
 
-    # print(outfiles)
-
-    # print(Psurf)
-    # print(Psurf.pathout(dirout, args.date_start))
-    # print(gnc.get_ncfile(Psurf, dirin, args.date_start))
-    # # print(Psurf.dirout(dirout, args.date_start))
-    # # print(Psurf.fileout(args.date_start))
-    # print(Tsurf)
-    # print(Tsurf.pathout(dirout, args.date_start))
-    # print(gnc.get_ncfile(Tsurf, dirin, args.date_start))
-    # # print(Tsurf.dirout(dirout, args.date_start))
-    # # print(Tsurf.fileout(args.date_start))
-    # print(T)
-    # print(T.pathout(dirout, args.date_start))
-    # print(gnc.get_ncfile(T, dirin, args.date_start))
-    # # print(T.dirout(dirout, args.date_start))
-    # # print(T.fileout(args.date_start))
-    # print(Q)
-    # print(Q.pathout(dirout, args.date_start))
-    # print(gnc.get_ncfile(Q, dirin, args.date_start))
-    # # print(Q.dirout(dirout, args.date_start))
-    # # print(Q.fileout(args.date_start))
-    # print(stat)
-    # print(stat.pathout(dirout, args.date_start))
-    # # print(stat.dirout(dirout, args.date_start))
-    # # print(stat.fileout(args.date_start))
-
-
-    # if not pathout.exists():
-    #   print(F"Create output subdirectory: {pathout}")
-    #   pathout.mkdir(parents=True, exist_ok=True)
-
-    # for var in outstr.values():
-    #   print(get_fileout(var, date_curr))
-    #   filepath = os.path.join(pathout, get_fileout(var, date_curr))
-    #   print(filepath)
-    #   # Check if output exists
-    #   if os.path.isfile(filepath):
-    #     print(F"Output file exists. Please remove it and relaunch\n  {filepath}")
-    #     fg_process = False
-
-
-    # ... Check input files ...
-    # -------------------------
-    ncfiles = np.unique(ncfiles)
-    filesok = [f.exists() for f in ncfiles]
-
-    missfiles = np.ma.array(
-      ncfiles,
-      # mask=np.logical_not(filesok)
-      mask=filesok
-    )
-    if not all(filesok):
-      print(F"Missing input file(s), skip date")
-      for file in missfiles[~missfiles.mask]:
-        print(F"  - {file}")
-      continue
+    # missfiles = np.ma.array(
+    #   ncfiles,
+    #   # mask=np.logical_not(filesok)
+    #   mask=filesok
+    # )
+    # if not all(filesok):
+    #   print(F"Missing input file(s), skip date")
+    #   for file in missfiles[~missfiles.mask]:
+    #     print(F"  - {file}")
+    #   continue
 
     # ... Check output files ...
     # --------------------------
@@ -832,10 +869,25 @@ if __name__ == "__main__":
       # mask=filesok
     )
     if any(filesok):
-      print(F"Onput file(s) already there, skip date")
+      # print(F"Onput file(s) already there, skip date")
+      print(F"Onput file(s) already there", end="")
+      if args.force:
+        print(F", they will be replaced.")
+      else:
+        print(F", skip date.")
+
       for file in donefiles[~donefiles.mask]:
         print(F"  - {file}")
-      continue
+
+      if not args.force:
+        continue
+
+    # ... Output directory ...
+    # ------------------------
+    subdir = Psurf.dirout(dirout, date_curr)
+    if not subdir.exists():
+      print(F"Create output subdirectory: {subdir}")
+      subdir.mkdir(parents=True, exist_ok=True)
 
     # ... Load NetCDF & target grids ...
     # ----------------------------------
@@ -845,157 +897,249 @@ if __name__ == "__main__":
     if not target_grid.loaded:
       target_grid.load(nc_grid)
 
+    deb = (date_prev.day - 1) * 24
+    fin = (date_prev.day - 1) * 24 + 72
+    times = nc_grid.time[deb:fin]
+    # pp.pprint(num2date(times))
 
+    code_start = dt.datetime.now()
 
+    for idx, lon in enumerate(nc_grid.lon):
+      fg_print = False
+      # if not (lon % 15):
+      if not (idx % 60):
+        fg_print = True
 
-    # To get -180. < lon < +180.
-    lon = nc_grid.lon
-    lon = np.empty([nc_grid.nlon, ], dtype=float)
-    cond = nc_grid.lon[:] > 180.
-    lon[cond] = nc_grid.lon[cond] - 360.
-    lon[~cond] = nc_grid.lon[~cond]
+      if fg_print:
+        code_end = dt.datetime.now()
+        print(
+          F"{72*'='}\nlon({idx}) = {lon}°E   "
+          F"duration = {(code_end - code_start).total_seconds()}s"
+          F"\n{72*'-'}"
+        )
+        code_start = code_end
 
-    idx_lon_l = np.empty([nc_grid.nlon, ], dtype=int)
-    idx_lon_r = np.empty([nc_grid.nlon, ], dtype=int)
-    weight_l  = np.empty([nc_grid.nlon, ], dtype=float)
-    weight_r  = np.empty([nc_grid.nlon, ], dtype=float)
+      dt_utc = lon2tutc(lon, date_curr, instru.tnode)
 
-    # Three days worth of timesteps (ts = 1 hour)
-    # univT = [i - 24. + 0.5 for i in range(72)]
+      # (dt_min, dt_max) = dt_bounds(dt_utc)
+      # (w_min, w_max) = dt_weight(dt_utc)
+      ((dt_min, w_min), (dt_max, w_max)) = dt_bounds(dt_utc)
+      (i_min, i_max) = dt_idx((dt_min, dt_max))
 
-    with open("poids.dat", "w") as f:
-      for idx, lon in enumerate(lon):
-        # print(idx, lon)
-        # print(instru.tnode)
-
-        # localT = univT + lon / 15.
-        # deltaT = abs(localT - lt_instru)
-        deltaT = [
-          abs((i - 24.+ 0.5 + lon/15.) - instru.tnode)
-          for i in range(72)
-        ]
-
-        (imin1, imin2) = np.argsort(deltaT)[0:2]
-
-        w1 = deltaT[imin1] / (deltaT[imin1] + deltaT[imin2])
-        w2 = deltaT[imin2] / (deltaT[imin1] + deltaT[imin2])
-
-        idx_lon_l[idx] = imin1
-        idx_lon_r[idx] = imin2
-        weight_l[idx]  = w2
-        weight_r[idx]  = w1
-
-        offset = (date_prev.day - 1) *24
-        count = 3 * 24
-        times = nc_grid.time[offset:offset+count]
-        # print(times.shape)
-
-        # print(times[imin1], times[imin2])
-        # print(
-        #   idx, lon, 
-        #   cf.num2date(
-        #     times[imin1],
-        #     units=nc_grid.tunits,
-        #     calendar=nc_grid.calendar,  # 'standard',
-        #     only_use_cftime_datetimes=False,  #True,
-        #     only_use_python_datetimes=True,  # False,
-        #     has_year_zero=None
-        #   ),
-        #   cf.num2date(
-        #     times[imin2],
-        #     units=nc_grid.tunits,
-        #     calendar=nc_grid.calendar,  # 'standard',
-        #     only_use_cftime_datetimes=False,  #True,
-        #     only_use_python_datetimes=True,  # False,
-        #     has_year_zero=None
-        #   ),
-        # )
-
-        date1 = cf.num2date(
-          times[imin1],
-          units=nc_grid.tunits,
-          calendar=nc_grid.calendar,  # 'standard',
-          only_use_cftime_datetimes=False,  #True,
-          only_use_python_datetimes=True,  # False,
-          has_year_zero=None
+      if fg_print:
+        print(
+          F"{w_min:4.2f} x {dt_min} (t={i_min})"
+          F" < {dt_utc} < "
+          F"{w_max:4.2f} x {dt_max} (t={i_max})"
         )
 
-        date2 = cf.num2date(
-          times[imin2],
-          units=nc_grid.tunits,
-          calendar=nc_grid.calendar,  # 'standard',
-          only_use_cftime_datetimes=False,  #True,
-          only_use_python_datetimes=True,  # False,
-          has_year_zero=None
-        )
+      # Find which NetCDF to read and slices
+      if dt_min.month == dt_max.month:
+        slc_time = ([i_min, i_max], )
+        for variable in (Psurf, Tsurf, T, Q):
+          variable.ncfiles = (gnc.get_ncfile(variable, dirin, dt_min), )
+      else:
+        slc_time = ([i_min, ], [i_max, ], )
+        for variable in (Psurf, Tsurf, T, Q):
+          variable.ncfiles = (
+            gnc.get_ncfile(variable, dirin, dt_min),
+            gnc.get_ncfile(variable, dirin, dt_max),
+          )
+      # slc_time = ([i_min, ], [i_max, ], )
+      # for variable in (Psurf, Tsurf, T, Q):
+      #   variable.ncfiles = (
+      #     gnc.get_ncfile(variable, dirin, dt_min),
+      #     gnc.get_ncfile(variable, dirin, dt_max),
+      #   )
+
+      # Psurf
+      # =====
+      vars = []
+      for (idx_time, filenc) in zip(slc_time, Psurf.ncfiles):
+        if fg_print:
+          print(idx_time, filenc)
+        with Dataset(filenc, "r", format="NETCDF4") as f_in:
+          var = f_in.variables[Psurf.ncvar][idx_time, :, lon].copy()
+          vars.append(var)
+        # if fg_print:
+        #   print(
+        #     # f_in.variables[Psurf.ncvar][idx_time, :, lon].shape
+        #     var,
+        #     var.shape,
+        #     type(var),
+        #       )
+      if len(vars) > 1:
+        var = np.ma.concatenate(vars, axis=0)
+      if fg_print:
+        print(
+          # f_in.variables[Psurf.ncvar][idx_time, :, lon].shape
+          # var,
+          var.shape,
+          type(var),
+            )
+
+      # # Psurf
+      # # =====
+      # with Dataset(Psurf.ncfiles[0], "r", format="NETCDF4") as f_in:
+      #   var_min = f_in.variables[Psurf.ncvar][(i_min, ), :, lon].copy()
+      # with Dataset(Psurf.ncfiles[0], "r", format="NETCDF4") as f_in:
+      #   var_max = f_in.variables[Psurf.ncvar][(i_max, ), :, lon].copy()
+
+      # var = np.ma.concatenate([var_min, var_max], axis=0)
+      # if fg_print:
+      #   print(
+      #     # var,
+      #     var_min.shape,
+      #     var_max.shape,
+      #     var.shape,
+      #     type(var),
+      #   )
+
+      # for (idx_time, filenc) in zip(slc_time, Psurf.ncfiles):
+      #   if fg_print:
+      #     print(idx_time, filenc)
+      #   with Dataset(filenc, "r", format="NETCDF4") as f_in:
+      #       var = f_in.variables[Psurf.ncvar][idx_time, :, lon].copy()
+      #   if fg_print:
+      #     print(
+      #       # f_in.variables[Psurf.ncvar][idx_time, :, lon].shape
+      #       var,
+      #       var.shape,
+      #       type(var),
+      #         )
+
+      # # temp
+      # # =====
+      # for (idx_time, filenc) in zip(slc_time, T.ncfiles):
+      #   if fg_print:
+      #     print(idx_time, filenc)
+      #   with Dataset(filenc, "r", format="NETCDF4") as f_in:
+      #     # view = f_in.variables[T.ncvar][idx_time, :, :, lon]
+      #     var = f_in.variables[T.ncvar][idx_time, :, :, lon].copy()
+      #   if fg_print:
+      #     print(
+      #       # f_in.variables[T.ncvar][idx_time, :, :, lon].shape
+      #       # # type(view)
+      #       var,
+      #       var.shape,
+      #       type(var),
+      #     )
 
 
 
-        # hours = 72.345
-        # seconds = hours * 3600
-        H = instru.tnode
-        # H = 1.001
-        (m, s) = divmod(H * 3600, 60)
-        (h, m) = divmod(m, 60)
+      #  # Psurf.values = 
 
-        # print(F"{int(h):02d}:{int(m):02d}:{s:08.5f}")
-        t_local = date_curr + dt.timedelta(hours=instru.tnode)
-
-        t_utc = t_local  - dt.timedelta(hours=0.5+lon/15.)
-        # print(t_utc)
-        t_min = t_utc.replace(minute=0, second=0, microsecond=0)
-        t_max = t_min + dt.timedelta(hours=1)
-
-        delta_min = (t_utc - t_min).total_seconds()
-        delta_max = (t_max - t_utc).total_seconds()
-        w_min = 1. - (delta_min / (delta_min + delta_max))
-        w_max = 1. - (delta_max / (delta_min + delta_max))
+      # (fnc_min, fnc_max) = (
+      #   gnc.get_ncfile(Psurf, dirin, date) for date in (dt_min, dt_max)
+      # )
 
 
-        (i_min, i_max) = (
-          d.hour + 24 * (d.day - 1) for d in (t_min, t_max)
-        )
-
-        times = nc_grid.time[i_min:i_max+1]
-        date_min = cf.num2date(
-          times[0],
-          units=nc_grid.tunits,
-          calendar=nc_grid.calendar,  # 'standard',
-          only_use_cftime_datetimes=False,  #True,
-          only_use_python_datetimes=True,  # False,
-          has_year_zero=None
-        )
-
-        date_max = cf.num2date(
-          times[1],
-          units=nc_grid.tunits,
-          calendar=nc_grid.calendar,  # 'standard',
-          only_use_cftime_datetimes=False,  #True,
-          only_use_python_datetimes=True,  # False,
-          has_year_zero=None
-        )
+      # if fg_print:
+      #   # print(fnc_min)
+      #   # print(fnc_max)
+      #   print(Q.ncfiles[0])
+      #   print(slc_time[0])
 
 
 
 
-        f.write(
-          F"{lon:7.2f}  "
-          F"({imin1:02d}, {imin2:02d})  "
-          F"({deltaT[imin1]:4.2f}, {deltaT[imin2]:4.2f})  =>  "
-          F"({w2:4.2f} * {date1:%Y-%m-%d_%Hh}) + "
-          F"({w1:4.2f} * {date2:%Y-%m-%d_%Hh})   "
-          # F"{t_min:%Y-%m-%d_%Hh} < "
-          # F"{t_utc} < "
-          # F"{t_max:%Y-%m-%d_%Hh}  "
-          # F"{(t_utc - t_min).total_seconds()} "
-          # F"{(t_max - t_utc).total_seconds()}  "
-          F"({w_min:4.2f} * {date_min:%Y-%m-%d_%Hh}) + "
-          F"({w_max:4.2f} * {date_max:%Y-%m-%d_%Hh})   "
-          # F"{w_min:4.2f} {w_max:4.2f} "
-          # F"{}"
-          # F"{}"
-          F"\n"
-        )
+
+
+
+
+
+
+
+    if args.poids:
+      print("Poids", date_curr)
+      # To get -180. < lon < +180.
+      lon = nc_grid.lon
+      lon = np.empty([nc_grid.nlon, ], dtype=float)
+      cond = nc_grid.lon[:] > 180.
+      lon[cond] = nc_grid.lon[cond] - 360.
+      lon[~cond] = nc_grid.lon[~cond]
+
+      idx_lon_l = np.empty([nc_grid.nlon, ], dtype=int)
+      idx_lon_r = np.empty([nc_grid.nlon, ], dtype=int)
+      weight_l  = np.empty([nc_grid.nlon, ], dtype=float)
+      weight_r  = np.empty([nc_grid.nlon, ], dtype=float)
+
+      # Three days worth of timesteps (ts = 1 hour)
+      # univT = [i - 24. + 0.5 for i in range(72)]
+
+      with open(F"poids_{instru.name}_{instru.ampm}.dat", "w") as f:
+        for idx, lon in enumerate(lon):
+          print(idx, lon)
+          # print(instru.tnode)
+
+          # localT = univT + lon / 15.
+          # deltaT = abs(localT - lt_instru)
+          deltaT = [
+            abs((i - 24.+ 0.5 + lon/15.) - instru.tnode)
+            for i in range(72)
+          ]
+
+          (imin1, imin2) = np.argsort(deltaT)[0:2]
+
+          w1 = 1. - (deltaT[imin1] / (deltaT[imin1] + deltaT[imin2]))
+          w2 = 1. - (deltaT[imin2] / (deltaT[imin1] + deltaT[imin2]))
+
+          idx_lon_l[idx] = imin1
+          idx_lon_r[idx] = imin2
+          weight_l[idx]  = w1
+          weight_r[idx]  = w2
+
+          offset = (date_prev.day - 1) * 24
+          count = 3 * 24
+          times = nc_grid.time[offset:offset+count]
+          date1 = num2date(times[imin1])
+          date2 = num2date(times[imin2])
+
+          dt_utc = lon2tutc(lon, date_curr, instru.tnode)
+          t_min = dt_utc.replace(minute=0, second=0, microsecond=0)
+          t_max = t_min + dt.timedelta(hours=1)
+
+          delta_min = (dt_utc - t_min).total_seconds()
+          delta_max = (t_max - dt_utc).total_seconds()
+          w_min = 1. - (delta_min / (delta_min + delta_max))
+          w_max = 1. - (delta_max / (delta_min + delta_max))
+
+          (i_min, i_max) = (
+            d.hour + 24 * (d.day - 1) for d in (t_min, t_max)
+          )
+
+          times = nc_grid.time[i_min:i_max+1]
+          date_min = num2date(times[0])
+          date_max = num2date(times[1])
+
+
+          if min((date1, date2)) != min((date_min, date_max)):
+            print(F"/!\\\n{72*'='}")
+            print(date1, date2)
+            print(date_min, date_max)
+          if max((date1, date2)) != max((date_min, date_max)):
+            print(F"/!\\\n{72*'='}")
+            print(date1, date2)
+            print(date_min, date_max)
+
+          f.write(
+            F"{lon:7.2f}  "
+            F"({imin1:02d}, {imin2:02d})  "
+            F"({deltaT[imin1]:4.2f}, {deltaT[imin2]:4.2f})  =>  "
+            F"({w1:4.2f} * {date1:%Y-%m-%d_%Hh}) + "
+            F"({w2:4.2f} * {date2:%Y-%m-%d_%Hh})   "
+            # F"{t_min:%Y-%m-%d_%Hh} < "
+            # F"{dt_utc} < "
+            # F"{t_max:%Y-%m-%d_%Hh}  "
+            # F"{(dt_utc - t_min).total_seconds()} "
+            # F"{(t_max - dt_utc).total_seconds()}  "
+            F"({w_min:4.2f} * {date_min:%Y-%m-%d_%Hh}) + "
+            F"({w_max:4.2f} * {date_max:%Y-%m-%d_%Hh})   "
+            # F"{w_min:4.2f} {w_max:4.2f} "
+            # F"{}"
+            # F"{}"
+            F"\n"
+          )
 
 
 
