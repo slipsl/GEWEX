@@ -41,7 +41,17 @@ with Dataset(filenc, "r", format="NETCDF4") as f_in:
 var = np.ma.concatenate([var1, var2], axis=0)
 """
 
-number = 25
+main_code_4 = """
+vars = []
+with Dataset(filenc, "r", format="NETCDF4") as f_in:
+  for lev in range(37):
+    vars.append(
+      f_in.variables[ncvar][(t1, t2), (lev, ), :, lon].copy()
+    )
+var = np.ma.concatenate(vars, axis=1)
+"""
+
+number = 250
 
 time1 = timeit.timeit(
   stmt=main_code_1,
@@ -71,4 +81,14 @@ time3 = timeit.timeit(
 print(
   F"Lecture x2 + concatenate\n  "
   F"{time3} ({time3/number})"
+)
+
+time4 = timeit.timeit(
+  stmt=main_code_4,
+  setup=setup_code,
+  number=number
+)
+print(
+  F"Lecture (indx) x n_lev + concatenate\n  "
+  F"{time4} ({time4/number})"
 )

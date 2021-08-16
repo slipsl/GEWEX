@@ -982,7 +982,7 @@ if __name__ == "__main__":
       # # =====
       # with Dataset(Psurf.ncfiles[0], "r", format="NETCDF4") as f_in:
       #   var_min = f_in.variables[Psurf.ncvar][(i_min, ), :, lon].copy()
-      # with Dataset(Psurf.ncfiles[0], "r", format="NETCDF4") as f_in:
+      # with Dataset(Psurf.ncfiles[1], "r", format="NETCDF4") as f_in:
       #   var_max = f_in.variables[Psurf.ncvar][(i_max, ), :, lon].copy()
 
       # var = np.ma.concatenate([var_min, var_max], axis=0)
