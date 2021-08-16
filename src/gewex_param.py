@@ -19,7 +19,7 @@
 # from pathlib import Path
 # import datetime as dt
 # from cftime import num2date, date2num
-# import pprint
+import pprint
 
 
 # import numpy as np
@@ -28,7 +28,7 @@
 # from scipy.io import FortranFile
 # from netCDF4 import Dataset
 
-# pp = pprint.PrettyPrinter(indent=2)
+pp = pprint.PrettyPrinter(indent=2)
 
 # Standard library imports
 # ========================
@@ -74,19 +74,27 @@ class InstruParam(object):
 # =====================================================================
 class GewexParam(object):
   # -------------------------------------------------------------------
-  def __init__(self):
+  def __init__(self, project_dir):
 
     self.fileversion = "05"
-    self.outstr = {
-      "temp"  : "L2_temperature_daily_average",
-      "h2o"   : "L2_H2O_daily_average",
-      "press" : "L2_P_surf_daily_average",
-      "stat"  : "L2_status",
-    }
+
+    self.dirin = project_dir.joinpath("input")
+    self.dirout = project_dir.joinpath("output")
+
+    # self.outstr = {
+    #   "temp"  : "L2_temperature_daily_average",
+    #   "h2o"   : "L2_H2O_daily_average",
+    #   "press" : "L2_P_surf_daily_average",
+    #   "stat"  : "L2_status",
+    # }
 
   # -------------------------------------------------------------------
   def __repr__(self):
-    return F"File version: {self.fileversion}"
+    return (
+      F"File version: {self.fileversion}\n"
+      F"Input dir:    {self.dirin}\n"
+      F"Output dir:   {self.dirout}"
+    )
 
 
 # =====================================================================
@@ -94,12 +102,14 @@ class Variable(object):
   # -------------------------------------------------------------------
   def __init__(self, name, instru):
 
+    import numpy as np
+
     self.name = name
 
     if name == "Psurf":
       self.ncvar = "sp"
       self.mode = "2d"
-      self.coeff = 100.
+      self.coeff = 1.e-2
       self.str = "L2_P_surf_daily_average"
     if name == "Tsurf":
       self.ncvar = "skt"
@@ -126,6 +136,7 @@ class Variable(object):
     self.instru = instru.name
     self.ampm = instru.ampm
 
+    self.outvalues = None
 
   # -------------------------------------------------------------------
   def __repr__(self):
@@ -134,6 +145,18 @@ class Variable(object):
       F"{self.ncvar} * {self.coeff} => "
       F"{self.str}"
     )
+
+  # -------------------------------------------------------------------
+  def init_outval(self, grid): 
+
+    import numpy as np
+
+    if self.mode == "2d":
+      shape = (grid.nlat, grid.nlon)
+    else:
+      shape = (grid.nlev, grid.nlat, grid.nlon)
+
+    self.outvalues = np.empty(shape)
 
   # -------------------------------------------------------------------
   def fileout(self, date):
@@ -159,7 +182,6 @@ class Variable(object):
 
     return ret
 
-
   # -------------------------------------------------------------------
   def pathout(self, dirout, date):
 
@@ -167,6 +189,40 @@ class Variable(object):
       ret = self.dirout(dirout, date).joinpath(self.fileout(date))
     else:
       ret = None
+
+    return ret
+
+  # -------------------------------------------------------------------
+  def get_ncfiles(self, dirin, dates):
+
+    if isinstance(dates, tuple):
+      dt_list = dates
+    else:
+      dt_list = (dates, )
+
+    if self.mode == "2d":
+      subdir = "AN_SF"
+      vartype = "as1e5"
+    elif self.mode == "3d":
+      subdir = "AN_PL"
+      vartype = "ap1e5"
+    else:
+      raise(F"Undefined variable {self.name}")
+
+    zone = "GLOBAL"
+    resol = "025"
+
+    ret = tuple(
+      dirin.joinpath(
+        subdir,
+        F"{date:%Y}",
+        F"{self.ncvar}.{date:%Y%m}.{vartype}.{zone}_{resol}.nc"
+      ) 
+      for date in dt_list
+    )
+
+    if not isinstance(dates, tuple):
+      ret = ret[0]
 
     return ret
 
@@ -208,7 +264,7 @@ class TGGrid(object):
 
     # Longitude: [-180 ; +180[
     self.lon = np.ma.array(
-      np.arange(-180., 180., 0.25),
+      np.arange(-179.75, 180.1, 0.25),
       mask=False,
     )
     self.nlon = self.lon.size
