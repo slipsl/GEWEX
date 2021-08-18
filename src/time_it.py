@@ -97,7 +97,6 @@ print(
   F"{time3} ({time3/number})"
 )
 
-<<<<<<< HEAD
 time4 = timeit.timeit(
   stmt=main_code_4,
   setup=setup_code,
@@ -107,15 +106,3 @@ print(
   F"Lecture (indx) x n_lev + concatenate\n  "
   F"{time4} ({time4/number})"
 )
-=======
-# time4 = timeit.timeit(
-#   stmt=main_code_4,
-#   setup=setup_code,
-#   number=number
-# )
-# print(
-#   F"Lecture (indx) x n_lev + concatenate\n  "
-#   F"{time4} ({time4/number})"
-# )                                                                                     
-
->>>>>>> 928aca3888526adaa867f2b3159533e3b6eda48c

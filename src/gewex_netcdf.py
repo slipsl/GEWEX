@@ -129,16 +129,21 @@ class NCGrid(object):
       # print(f_nc.variables["time"])
       self.lat = f_nc.variables["latitude"][:]
       self.lon = f_nc.variables["longitude"][:]
-      self.lev = f_nc.variables["level"][:]
       self.time = f_nc.variables["time"][:]
       self.calendar = f_nc.variables["time"].calendar
       self.tunits = f_nc.variables["time"].units
+      if "level" in f_nc.dimensions:
+        self.lev = f_nc.variables["level"][:]
+      else:
+        self.lev = None
 
     self.nlat = self.lat.size
     self.nlon = self.lon.size
-    self.nlev = self.lev.size
     self.ntime = self.time.size
-
+    if not self.lev is None:
+      self.nlev = self.lev.size
+    else:
+      self.nlev = None
 
       # print(type(self.lat))
       # print(self.lat.mask)
@@ -176,15 +181,15 @@ def get_ncfile(variable, dirin, date):
 
 
 #----------------------------------------------------------------------
-def read_netcdf(variable, nc_grid, i_lon, idx):
+def read_netcdf(variable, nc_grid, i_lon, i_time):
 
   if isinstance(variable.ncfiles, tuple):
     import numpy as np
-    time_slices = ((idx[0], ), (idx[1], ))
+    time_slices = ((i_time[0], ), (i_time[1], ))
     ncfiles = variable.ncfiles
     # print("2 files")
   else:
-    time_slices = ((idx,))
+    time_slices = ((i_time,))
     ncfiles = (variable.ncfiles, )
     # print("1 files")
 

@@ -13,6 +13,7 @@ import numpy as np
 from scipy.io import FortranFile
 # import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib import colors
 # from mpl_toolkits.basemap import Basemap
 from netCDF4 import Dataset
 import pprint
@@ -49,6 +50,8 @@ def read_netcdf(filein, varname):
   var_out = np.flipud(var_out)
   idx_lon = np.where(nc_lon == 180.)[0][0]
   var_out = np.roll(var_out, idx_lon, axis=1)
+
+  print(np.roll(nc_lon, idx_lon))
 
   return var_out
 
@@ -120,6 +123,8 @@ lon = np.array([i / 4. for i in range(-180*4, 180*4)])
 nlat = len(lat)
 nlon = len(lon)
 
+print(lon[0], lon[-1])
+
 # cond = lon < 0.
 # lon[cond] = lon[cond] + 360.  # 0. <= lon < 360.
 
@@ -128,11 +133,13 @@ filenc = dirnc.joinpath(
   "sp.200802.as1e5.GLOBAL_025.nc"
 )
 
-fileout = "unmasked_ERA5_AIRS_V6_L2_P_surf_daily_average.20080220.AM_05"
+fileout = "unmasked_ERA5_AIRS_V6_L2_P_surf_daily_average.20080220.PM_05"
 dirold = Path(os.path.join("output", "exemples"))
 fileold = dirold.joinpath(fileout)
 dirnew = Path(os.path.join("output", "2008", "02"))
 filenew = dirnew.joinpath(fileout)
+
+filenew = project_dir.joinpath("Ptest.dat")
 
 print("Read netcdf")
 # ========================
@@ -153,10 +160,15 @@ print("Prepare data old-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im1 = ax1.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im1 = ax1.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb1 = fig.colorbar(im1, ax=ax1)
 ax1.set_title("P_old - P_new")
 write_comment(ax1, Z)
@@ -176,10 +188,15 @@ print("Prepare data nc-old")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im2 = ax2.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im2 = ax2.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb2 = fig.colorbar(im2, ax=ax2)
 ax2.set_title("P_nc - P_old")
 write_comment(ax2, Z)
@@ -199,10 +216,15 @@ print("Prepare data nc-new")
 print(
   Z.mean(), Z.std()
 )
+divnorm = colors.TwoSlopeNorm(
+  vcenter=0.,
+  vmin=Z.min(),
+  vmax=Z.max(),
+)
 
 print("Plot data")
 # ========================
-im3 = ax3.scatter(x=X, y=Y, c=Z, cmap=cmap_diff)
+im3 = ax3.scatter(x=X, y=Y, c=Z, cmap=cmap_diff, norm=divnorm)
 cb3 = fig.colorbar(im3, ax=ax3)
 ax3.set_title("P_nc - P_new")
 write_comment(ax3, Z)
@@ -273,6 +295,8 @@ for ax in (ax1, ax2, ax3):
   ax.set_ylim([-90., 90.])
   ax.set_xticks(range(-180, 181, 30))
   ax.set_yticks(range(-90, 91, 30))
+  ax.xaxis.set_minor_locator(plt.MultipleLocator(3))
+
 
 for cb in (cb1, cb2, cb3):
   cb.ax.tick_params(labelsize=8)

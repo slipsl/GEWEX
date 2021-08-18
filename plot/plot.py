@@ -106,12 +106,13 @@ filenc = dirnc.joinpath(
   "sp.200802.as1e5.GLOBAL_025.nc"
 )
 
-fileout = "unmasked_ERA5_AIRS_V6_L2_P_surf_daily_average.20080220.AM_05"
+fileout = "unmasked_ERA5_AIRS_V6_L2_P_surf_daily_average.20080220.PM_05"
 dirold = Path(os.path.join("output", "exemples"))
 fileold = dirold.joinpath(fileout)
 dirnew = Path(os.path.join("output", "2008", "02"))
 filenew = dirnew.joinpath(fileout)
 
+# fileold = project_dir.joinpath("Ptest.dat")
 
 
 print("Read netcdf")

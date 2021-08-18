@@ -107,26 +107,35 @@ class Variable(object):
     self.name = name
 
     if name == "Psurf":
+      self.longname = "Surface pressure"
       self.ncvar = "sp"
       self.mode = "2d"
       self.coeff = 1.e-2
       self.str = "L2_P_surf_daily_average"
+      self.units = "hPa"
     if name == "Tsurf":
+      self.longname = "Skin temperature"
       self.ncvar = "skt"
       self.mode = "2d"
       self.coeff = 1.
       self.str = None
+      self.units = "K"
     if name == "temp":
+      self.longname = "Temperature"
       self.ncvar = "ta"
       self.mode = "3d"
       self.coeff = 1.
       self.str = "L2_temperature_daily_average"
+      self.units = "K"
     if name == "h2o":
+      self.longname = "Specific humidity"
       self.ncvar = "q"
       self.mode = "3d"
       self.coeff = instru.f_q
       self.str = "L2_H2O_daily_average"
+      self.units = F"{self.coeff ** -1:1.0e} kg kg**-1"
     if name == "stat":
+      self.longname = ""
       self.ncvar = None
       self.mode = None
       self.coeff = None
@@ -137,6 +146,10 @@ class Variable(object):
     self.ampm = instru.ampm
 
     self.outvalues = None
+
+  # -------------------------------------------------------------------
+  def __bool__(self):
+    return True
 
   # -------------------------------------------------------------------
   def __repr__(self):
@@ -264,6 +277,7 @@ class TGGrid(object):
 
     # Longitude: [-180 ; +180[
     self.lon = np.ma.array(
+      # np.arange(-180., 180., 0.25),
       np.arange(-179.75, 180.1, 0.25),
       mask=False,
     )
@@ -286,6 +300,77 @@ class TGGrid(object):
 # =====================================================================
 # =                            Functions                              =
 # =====================================================================
+def grid_nc2tg(var_in, nc_grid, tg_grid):
+  import numpy as np
+
+  var_out = var_in
+
+  # Longitudes
+  # ==========
+  print(nc_grid.lon[0])
+  print(nc_grid.lon[-1])
+
+  print(tg_grid.lon[0])
+  print(tg_grid.lon[-1])
+
+  # lon = nc_grid.lon.copy()
+  # cond = (nc_grid.lon >= 180.)
+  # lon[cond] = lon[cond] - 360.
+  # print(lon)
+
+  # # imin = np.argmin(lon)
+  # # print(imin, lon[imin])
+  # # print(np.roll(lon, -imin))
+  # # print(np.roll(nc_grid.lon, -imin))
+  # # print(tg_grid.lon)
+
+  # imin = np.squeeze(np.argwhere(lon == tg_grid.lon[0]))
+  # print("imin", imin)
+  # print(
+  #   np.roll(
+  #     # lon,
+  #     nc_grid.lon,
+  #     -imin
+  #   )
+  # )
+
+  lon_init = tg_grid.lon[0]
+  if lon_init < 0.:
+    lon_init = lon_init + 360.
+  imin = np.squeeze(np.argwhere(nc_grid.lon == lon_init))
+
+  # print(
+  #   "imin",
+  #   imin,
+  #   np.roll(nc_grid.lon, -(imin))
+  # )
+
+  # l = np.roll(nc_grid.lon, -(imin))
+  # cond = l > 180.
+  # l[cond] = l[cond] - 360.
+  # pp.pprint(l)
+
+  # var_out = np.roll(var_out, -(imin-1), axis=-1)
+  var_out = np.roll(var_out, -imin, axis=-1)
+
+  # Latitudes
+  # =========
+  var_out = np.flip(var_out, axis=-2)
+
+  return var_out.copy()
+
+
+#----------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
 def get_arguments():
   from argparse import ArgumentParser
   from argparse import RawTextHelpFormatter

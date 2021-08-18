@@ -704,9 +704,9 @@ if __name__ == "__main__":
   }
 
 
-  fg_temp  = True
   fg_press = True
-  fg_h2o   = True
+  fg_temp  = False
+  fg_h2o   = False
 
   # ... Files and directories ...
   # -----------------------------
@@ -949,9 +949,9 @@ if __name__ == "__main__":
 
       # print(Psurf)
 
-      # # f_out = FortranFile(fileout, mode="w")
-      # with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
-      #   f.write_record(Psurf.T.astype(dtype=">f4"))
+      # f_out = FortranFile(fileout, mode="w")
+      with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
+        f.write_record(Psurf.T.astype(dtype=">f4"))
 
 
       if fg_h2o:

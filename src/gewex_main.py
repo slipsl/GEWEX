@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 # from fortio import FortranFile
 from scipy.io import FortranFile
-from netCDF4 import Dataset
+# from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
 
@@ -198,7 +198,8 @@ def lon2tutc(lon, date, tnode):
   # (m, s) = divmod(tnode * 3600, 60)
   # (h, m) = divmod(m, 60)
 
-  if lon >= 360.:
+  # if lon >= 180.:
+  if lon > 180.:
     lon = lon - 360.
   t_local = date + dt.timedelta(hours=tnode)
 
@@ -785,9 +786,9 @@ if __name__ == "__main__":
   print(instru)
   print(params)
 
-  fg_temp  = True
   fg_press = True
-  fg_h2o   = True
+  fg_temp  = True
+  fg_h2o   = False
 
 
 
@@ -822,18 +823,23 @@ if __name__ == "__main__":
 
     if fg_temp:
       Tsurf = gw.Variable("Tsurf", instru)
-      ncfiles.append(Psurf.get_ncfiles(params.dirin, dates))
+      ncfiles.append(Tsurf.get_ncfiles(params.dirin, dates))
       T = gw.Variable("temp", instru)
-      ncfiles.append(Psurf.get_ncfiles(params.dirin, dates))
+      ncfiles.append(T.get_ncfiles(params.dirin, dates))
       outfiles.append(T.pathout(params.dirout, date_curr))
+    else:
+      Tsurf = None
+      T = None
 
       stat = gw.Variable("stat", instru)
       outfiles.append(stat.pathout(params.dirout, date_curr))
 
     if fg_h2o:
       Q = gw.Variable("h2o", instru)
-      ncfiles.append(Psurf.get_ncfiles(params.dirin, dates))
+      ncfiles.append(Q.get_ncfiles(params.dirin, dates))
       outfiles.append(Q.pathout(params.dirout, date_curr))
+    else:
+      Q = None
 
     # ... Check input files ...
     # -------------------------
@@ -882,7 +888,16 @@ if __name__ == "__main__":
     # ... Load NetCDF & target grids ...
     # ----------------------------------
     if not nc_grid.loaded:
-      nc_grid.load(T.get_ncfiles(params.dirin, args.date_start))
+      # nc_grid.load(T.get_ncfiles(params.dirin, args.date_start))
+      # if not T is None:
+      if T:
+        variable = T
+      # elif not Q is None:
+      elif Q:
+        variable = Q
+      else:
+        variable = Psurf
+      nc_grid.load(variable.get_ncfiles(params.dirin, args.date_start))
 
     if not target_grid.loaded:
       target_grid.load(nc_grid)
@@ -920,13 +935,16 @@ if __name__ == "__main__":
     for i_lon, lon in enumerate(nc_grid.lon):
 
       fg_print = False
-      if not (i_lon % 60):
+      # if not (i_lon % 60):
+      if i_lon in range(700, 721):
         fg_print = True
 
       if fg_print:
         print(F"\n{72*'~'}")
 
       dt_utc = lon2tutc(lon, date_curr, instru.tnode)
+      if fg_print:
+        print(F"UTC = {dt_utc}")
       ((dt_min, w_min), (dt_max, w_max)) = dt_bounds(dt_utc)
       (t_min, t_max) = dt_idx((dt_min, dt_max))
 
@@ -958,8 +976,10 @@ if __name__ == "__main__":
         dates = (dt_min, dt_max)
 
       for variable in (Psurf, Tsurf, T, Q):
-        variable.ncfiles = variable.get_ncfiles(params.dirin, dates)
-        # pp.pprint(variable.ncfiles)
+        # if not variable is None:
+        if variable:
+          variable.ncfiles = variable.get_ncfiles(params.dirin, dates)
+          # pp.pprint(variable.ncfiles)
 
       if fg_print:
         print(F"Read Psurf, lon = {lon} ({i_lon})")
@@ -1106,7 +1126,11 @@ if __name__ == "__main__":
     values = np.flip(values, axis=-2)
 
     # f_out = FortranFile(fileout, mode="w")
-    with FortranFile("Ptest.dat", mode="w", header_dtype=">u4") as f:
+    # with FortranFile("Ptest.dat", mode="w", header_dtype=">u4") as f:
+    with FortranFile(
+      Psurf.pathout(params.dirout, date_curr), mode="w",
+      header_dtype=">u4"
+    ) as f:
       f.write_record(values.T.astype(dtype=">f4"))
 
 
@@ -1134,7 +1158,12 @@ if __name__ == "__main__":
 
       with open(F"poids_{instru.name}_{instru.ampm}.dat", "w") as f:
         for idx, lon in enumerate(lon):
-          print(idx, lon)
+          fg_print = False
+          if not (idx % 60):
+            fg_print = True
+
+          if fg_print:
+            print(idx, lon)
           # print(instru.tnode)
 
           # localT = univT + lon / 15.
@@ -1181,11 +1210,12 @@ if __name__ == "__main__":
           if min((date1, date2)) != min((date_min, date_max)):
             print(F"/!\\\n{72*'='}")
             print(date1, date2)
-            print(date_min, date_max)
+            print(F"{date_min} (x{w_min:4.2f}), {date_max} (x{w_max:4.2f})")
           if max((date1, date2)) != max((date_min, date_max)):
             print(F"/!\\\n{72*'='}")
             print(date1, date2)
-            print(date_min, date_max)
+            print(F"{date_min} (x{w_min:4.2f}), {date_max} (x{w_max:4.2f})")
+            # print(date_min, date_max)
 
           f.write(
             F"{lon:7.2f}  "
