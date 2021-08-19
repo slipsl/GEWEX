@@ -169,7 +169,8 @@ class Variable(object):
     else:
       shape = (grid.nlev, grid.nlat, grid.nlon)
 
-    self.outvalues = np.empty(shape)
+    self.outvalues = np.ma.empty(shape)
+    self.outvalues.mask = True
 
   # -------------------------------------------------------------------
   def fileout(self, date):
@@ -238,6 +239,27 @@ class Variable(object):
       ret = ret[0]
 
     return ret
+
+  # -------------------------------------------------------------------
+  def print_values(self, mode="nc"):
+
+    if mode == "nc":
+      values = self.ncvalues
+    else:
+      values = self.outvalues
+
+    if values is None:
+      string = "None"
+    else:
+      fmt = ".2f"
+      string = (
+        F"{self.longname} ({mode}): "
+        F"min={values.min():{fmt}} {self.units} ; "
+        F"max={values.max():{fmt}} {self.units} ; "
+        F"mean={values.mean():{fmt}} {self.units} ; "
+        F"std={values.std():{fmt}} {self.units}"
+      )
+    print(string)
 
 
 class TGGrid(object):

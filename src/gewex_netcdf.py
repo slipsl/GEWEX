@@ -183,8 +183,8 @@ def get_ncfile(variable, dirin, date):
 #----------------------------------------------------------------------
 def read_netcdf(variable, nc_grid, i_lon, i_time):
 
+  import numpy as np
   if isinstance(variable.ncfiles, tuple):
-    import numpy as np
     time_slices = ((i_time[0], ), (i_time[1], ))
     ncfiles = variable.ncfiles
     # print("2 files")
@@ -203,11 +203,18 @@ def read_netcdf(variable, nc_grid, i_lon, i_time):
     var_slice = (time_slc, ) + xyz_slice
     with Dataset(filename, "r", format="NETCDF4") as f_in:
       l_var.append(f_in.variables[variable.ncvar][var_slice])
+      # print(f_in.variables[variable.ncvar].missing_value)
+      # print(f_in.variables[variable.ncvar][:].fill_value)
+      # print(np.ma.is_masked(f_in.variables[variable.ncvar][:]))
 
   if len(l_var) > 1:
     var = np.ma.concatenate(l_var, axis=0)
   else:
     var = l_var[0]
+
+  # print(type(var))
+
+  # exit()
 
   return variable.coeff * var
   # return var

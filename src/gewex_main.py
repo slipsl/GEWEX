@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 # from fortio import FortranFile
 from scipy.io import FortranFile
+from scipy.interpolate import interp1d
 # from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
@@ -258,6 +259,28 @@ def dt_weight(date):
 
 
 #----------------------------------------------------------------------
+def compute_outdata(variable, w_min, w_max, grid, fg_print):
+
+  if variable.mode == "2d":
+    shape = (grid.nlat, )
+  else:
+    shape = (grid.nlev, grid.nlat, )
+  outvalues = np.empty(shape)
+
+  if fg_print:
+    print(F"inside compute: {variable.ncvalues.shape} => {outvalues.shape}")
+
+  outvalues = (
+    w_min * variable.ncvalues[0, ...] +
+    w_max * variable.ncvalues[1, ...]
+  )
+  if fg_print:
+    print("sortie de compute:", type(outvalues), outvalues.shape)
+
+  return outvalues
+
+
+#----------------------------------------------------------------------
 def iter_dates(start, stop):
 
   # # a generator that yields items instead of returning a list
@@ -295,441 +318,7 @@ def num2date(val):
   )
 
 
-# #----------------------------------------------------------------------
-# def date2num(val):
-
-#   return dt.datetime(1800, 1, 1) + dt.timedelta(hours=float(val))
-
-
-# #----------------------------------------------------------------------
-# def get_filein(varname, date_curr):
-
-#   # if varname == "ta" or varname == "q":
-#   if varname in pl_vars:
-#     vartype = "ap1e5"
-#     pathin = dirin_pl
-#   # elif varname == "sp" or varname == "skt":
-#   elif varname in sf_vars:
-#     vartype = "as1e5"
-#     pathin = dirin_sf
-
-#   # yyyymm = dt.datetime.strftime(date_curr, "%Y%m")
-
-#   # return F"{varname}.{yyyymm}.{vartype}.GLOBAL_025.nc"
-#   return (
-#     os.path.join(
-#       pathin,
-#       F"{date_curr:%Y}",
-#       F"{varname}.{date_curr:%Y%m}.{vartype}.GLOBAL_025.nc",
-#     )
-#   )
-
-#   # ta.202102.ap1e5.GLOBAL_025.nc
-#   # q.202102.ap1e5.GLOBAL_025.nc
-
-#   # skt.202102.as1e5.GLOBAL_025.nc
-#   # sp.202102.as1e5.GLOBAL_025.nc
-
-
-# #----------------------------------------------------------------------
-# def get_fileout(varname, date_curr):
-
-#   # F"unmasked_ERA5_AIRS_V6_L2_H2O_daily_average.20080220.PM_05"
-
-#   return (
-#     F"unmasked_ERA5_{instrument}_{varname}.{date_curr:%Y%m%d}.{ampm}_{fileversion}"
-#   )
-
-#   # ta.202102.ap1e5.GLOBAL_025.nc
-#   # q.202102.ap1e5.GLOBAL_025.nc
-
-#   # skt.202102.as1e5.GLOBAL_025.nc
-#   # sp.202102.as1e5.GLOBAL_025.nc
-
-
-# #----------------------------------------------------------------------
-# def get_variable(varname, date_curr):
-
-#   date_prev = date_curr - dt.timedelta(days=1)
-#   date_next = date_curr + dt.timedelta(days=1)
-
-#   # Get data from the target day, the day before and the day after
-#   timestep = 1        # in hours
-#   tstep_per_day = 24  # 
-
-#   print(read_var_info(get_filein(varname, date_curr), varname))
-
-
-
-#   filelist = []
-
-#   if date_prev.month < date_curr.month:
-#     offset = (date_prev.day - 1) * tstep_per_day
-#     nb_steps = 1 * tstep_per_day
-#     # print("Filein: ", get_filein(varname, date_prev), offset, nb_steps)
-#     filelist.append((get_filein(varname, date_prev), offset, nb_steps))
-
-#     offset = (date_curr.day - 1) * tstep_per_day
-#     nb_steps = 2 * tstep_per_day
-#     # print("Filein: ", get_filein(varname, date_curr), offset, nb_steps)
-#     filelist.append((get_filein(varname, date_curr), offset, nb_steps))
-#   elif date_next.month > date_curr.month:
-#     offset = (date_curr.day - 2) * tstep_per_day
-#     nb_steps = 2 * tstep_per_day
-#     # print("Filein: ", get_filein(varname, date_curr), offset, nb_steps)
-#     filelist.append((get_filein(varname, date_curr), offset, nb_steps))
-
-#     offset = (date_next.day - 1) * tstep_per_day
-#     nb_steps = 1 * tstep_per_day
-#     # print("Filein: ", get_filein(varname, date_next), offset, nb_steps)
-#     filelist.append((get_filein(varname, date_next), offset, nb_steps))
-#   else:
-#     offset = (date_curr.day - 2) * tstep_per_day
-#     nb_steps = 3 * tstep_per_day
-
-#     # print("Filein: ", get_filein(varname, date_curr), offset, nb_steps)
-#     filelist.append((get_filein(varname, date_curr), offset, nb_steps))
-
-#   # varvalues = np.empty()
-#   varvalues = []
-
-#   for (filename, offset, nb_steps) in filelist:
-#     print(filename, offset, nb_steps)
-#     # print(read_netcdf(filename, varname, offset, nb_steps))
-
-#     varvalues.extend(read_netcdf(filename, varname, offset, nb_steps))
-
-#   varvalues = np.array(varvalues)
-#   pp.pprint(
-#     # [num2date(i) for i in varvalues]
-#     varvalues
-#   )
-#   print(varvalues.dtype)
-
-#     # offsets = [
-#     #   (date_curr.day - i) * 24 for i in [2, 1, 0]
-#     # ]
-#     # print(offsets)
-#     # nb_steps = 24
-
-#     # times = []
-#     # for o in offsets:
-#     #   times.extend(nc_time[o:o+nb_steps])
-
-
-# #----------------------------------------------------------------------
-# def def_time_lon():
-
-#   univT = [i - 24. + 0.5 for i in range(72)]
-#   read_netcdf(filename, "longitude", offset=None, nb_steps=None)
-
-
-# #----------------------------------------------------------------------
-# def lon_time(lon, lt_instru):
-
-#   l = lon
-#   if lon > 180.:
-#     l = lon - 360.
-#   l = l / 15.
-
-#   print("shift = 0.5")
-#   # univT = [i - 24. for i in range(72)]
-#   univT = [i - 24. + 0.5 for i in range(72)]
-#   # print(univT)
-#   localT = [i + l for i in univT]
-#   # print(localT)
-#   deltaT = [abs(i - lt_instru) for i in localT]
-#   # print(deltaT)
-
-#   print(
-#     " TU     TL     dT      "
-#     " TU     TL     dT      "
-#     " TU     TL     dT"
-#   )
-#   for i in range(24):
-#     print(
-#       F"{univT[i]:6.2f} {localT[i]:6.2f} {deltaT[i]:6.2f}   "
-#       F"{univT[i+24]:6.2f} {localT[i+24]:6.2f} {deltaT[i+24]:6.2f}   "
-#       F"{univT[i+48]:6.2f} {localT[i+48]:6.2f} {deltaT[i+48]:6.2f}   "
-#     )
-
-
-#   (imin1, imin2) = np.argsort(deltaT)[0:2]
-
-#   w1 = deltaT[imin1] / (deltaT[imin1] + deltaT[imin2])
-#   w2 = deltaT[imin2] / (deltaT[imin1] + deltaT[imin2])
-
-#   return (imin1, imin2, w1, w2)
-
-
-# #----------------------------------------------------------------------
-# def read_var_info(filename, varname):
-
-#   print(F"Info from {filename}\n"+72*"=")
-
-#   # varname = "time"
-#   with Dataset(filename, "r", format="NETCDF4") as f_in:
-#     varout = f_in.variables[varname]
-
-#     return (
-#       varout.name,
-#       varout.shape,
-#       varout.units,
-#       varout.dtype,
-#     )
-
-
-# #----------------------------------------------------------------------
-# def def_slice(
-#   cnt_tim,   cnt_lat,   cnt_lon,   cnt_lev=0,
-#   off_tim=0, off_lat=0, off_lon=0, off_lev=0,
-#   stp_tim=None, stp_lat=None, stp_lon=None, stp_lev=None, ):
-
-#   if cnt_lev:
-#     ret = [
-#       slice(off_tim, off_tim + cnt_tim, stp_tim),
-#       slice(off_lev, off_lev + cnt_lev, stp_lev),
-#       slice(off_lat, off_lat + cnt_lat, stp_lat),
-#       slice(off_lon, off_lon + cnt_lon, stp_lon),
-#     ]
-#   else:
-#     ret = [
-#       slice(off_tim, off_tim + cnt_tim, stp_tim),
-#       slice(off_lat, off_lat + cnt_lat, stp_lat),
-#       slice(off_lon, off_lon + cnt_lon, stp_lon),
-#     ]
-
-#   return ret
-
-
-# #----------------------------------------------------------------------
-# def read_netcdf(fileid, varname, var_slice):
-
-#   return np.squeeze(fileid.variables[varname][var_slice])
-
-
-# #----------------------------------------------------------------------
-# def read_ERA5_netcdf(date_curr, lt_instru, varname):
-
-#   date_prev = date_curr - dt.timedelta(days=1)
-#   date_next = date_curr + dt.timedelta(days=1)
-
-#   file_prev = None
-#   file_curr = get_filein(varname, date_curr)
-#   file_next = None
-
-#   if date_prev.month < date_curr.month:
-#     file_prev = get_filein(varname, date_prev)
-#     # off_prev = (date_prev.day - 1) * 24
-
-#   if date_next.month > date_curr.month:
-#     file_next = get_filein(varname, date_next)
-#     # off_next = (date_next.day - 1) * 24
-
-#   for filename in [file_prev, file_curr, file_next]:
-#     if filename and not os.path.isfile(filename):
-#         print(F"Input file missing: {filename}")
-#         return None
-
-#   off_prev, cnt_prev = (date_prev.day - 1) * 24, 24
-#   off_curr, cnt_curr = (date_curr.day - 1) * 24, 24
-#   off_next, cnt_next = (date_next.day - 1) * 24, 24
-
-#   # Longitudes => timesteps
-#   print(
-#     F"{72*'='}\n"
-#     F"Reading {os.path.basename(file_curr)} to process t = f(lon)"
-#     F"\n{72*'-'}"
-#   )
-#   with Dataset(file_curr, "r", format="NETCDF4") as f_in:
-#     print(len(f_in.dimensions))
-#     dims   = f_in.variables[varname].dimensions
-#     ndim   = f_in.variables[varname].ndim
-#     nc_lat = f_in.variables["latitude"][:]
-#     nc_lon = f_in.variables["longitude"][:]
-#     if "level" in dims:
-#       nc_lev = f_in.variables["level"][:]
-#       nlev = nc_lev.size
-#     else:
-#       nc_lev = [None, ]
-#       nlev = 1
-
-#     # nc_time = f_in.variables["time"][:]
-#     ntim = f_in.variables["time"].size
-#     nlat = nc_lat.size
-#     nlon = nc_lon.size
-
-#   # To get -180. < lon < +180.
-#   cond = nc_lon[:] > 180.
-#   nc_lon[cond] = nc_lon[cond] - 360.
-
-#   idx_lon_l = np.empty([nlon, ], dtype=int)
-#   idx_lon_r = np.empty([nlon, ], dtype=int)
-#   weight_l  = np.empty([nlon, ], dtype=float)
-#   weight_r  = np.empty([nlon, ], dtype=float)
-
-#   # Three days worth of timesteps (ts = 1 hour)
-#   # univT = [i - 24. + 0.5 for i in range(72)]
-
-#   for idx, lon in enumerate(nc_lon):
-#     # print(lon)
-
-#     # localT = univT + lon / 15.
-#     # deltaT = abs(localT - lt_instru)
-#     deltaT = [abs((i - 24.+ 0.5 + lon/15.) - lt_instru) for i in range(72)]
-
-#     (imin1, imin2) = np.argsort(deltaT)[0:2]
-
-#     w1 = deltaT[imin1] / (deltaT[imin1] + deltaT[imin2])
-#     w2 = deltaT[imin2] / (deltaT[imin1] + deltaT[imin2])
-
-#     idx_lon_l[idx] = imin1
-#     idx_lon_r[idx] = imin2
-#     weight_l[idx]  = w2
-#     weight_r[idx]  = w1
-
-
-#   fcurr_in = Dataset(file_curr, "r", format="NETCDF4")
-#   if file_prev:
-#     fprev_in = Dataset(file_prev, "r", format="NETCDF4")
-#   else:
-#     fprev_in = None
-#   if file_next:
-#     fnext_in = Dataset(file_next, "r", format="NETCDF4")
-#   else:
-#     fnext_in = None
-
-
-#   # if nc_lev:
-#   # if "level" in dims:
-#   # var_full = np.empty([nlev, nlat, nlon], dtype=float)
-#   var_out = np.empty([nlev, nlat, nlon], dtype=float)
-#   print("var_out: ", var_out.shape)
-
-#   print("loop over levels")
-#   for idx_pl, pl in enumerate(nc_lev):
-#     # print(idx_pl, pl)
-#     print(F"P({idx_pl}) = {pl}mbar")
-
-#     if nlev > 1:
-#       cnt_lev = 1
-#       off_lev = idx_pl
-#     else:
-#       cnt_lev = 0
-#       off_lev = 0
-
-#     # print("File prev")
-#     if fprev_in:
-#       f_in = fprev_in
-#     else:
-#       f_in = fcurr_in
-#     var_prev = read_netcdf(
-#       f_in, varname, 
-#       def_slice(
-#         cnt_tim=cnt_prev, off_tim=off_prev,
-#         cnt_lev=cnt_lev, off_lev=off_lev,
-#         cnt_lat=nlat, cnt_lon=nlon,
-#       )
-#     )
-#     # print(var_prev.shape)
-
-#     # print("File curr")  # time, level, lat, lon
-#     var_curr = read_netcdf(
-#       fcurr_in, varname, 
-#       def_slice(
-#         cnt_tim=cnt_curr, off_tim=off_curr,
-#         cnt_lev=cnt_lev, off_lev=off_lev,
-#         cnt_lat=nlat, cnt_lon=nlon,
-#       )
-#     )
-#     # print(var_curr.shape)
-
-#     # print("File next")
-#     if fnext_in:
-#       f_in = fnext_in
-#     else:
-#       f_in = fcurr_in
-#     var_next = read_netcdf(
-#       f_in, varname,
-#       def_slice(
-#         cnt_tim=cnt_next, off_tim=off_next,
-#         cnt_lev=cnt_lev, off_lev=off_lev,
-#         cnt_lat=nlat, cnt_lon=nlon,
-#       )
-#     )
-#     # print(var_next.shape)
-
-#     # freemem()
-
-#     var_full = np.concatenate((var_prev, var_curr, var_next), axis = 0)
-#     # print("var_full: ", var_full.shape)
-#     # print("var_full: ", var_full[24, 360, 720])
-
-#     # freemem()
-#     # Delete intermediate variables to free some memory
-#     del var_prev, var_curr, var_next
-#     # freemem()
-
-#     for idx_lon in range(nlon):
-#       # var_full = [time, lat, lon]
-#       var_out[idx_pl, :, idx_lon] = (
-#         var_full[idx_lon_l[idx_lon], :, idx_lon] * weight_l[idx_lon] +
-#         var_full[idx_lon_r[idx_lon], :, idx_lon] * weight_r[idx_lon]
-#       )
-
-#   # print(var_out[:, 360, 720])
-
-#     # print("in : ", var_full[idx_lon_l[idx_lon], :, idx_lon].shape)
-#     # print("out: ", var_out_pl.shape)
-
-
-#   fcurr_in.close()
-#   if fprev_in:
-#     fprev_in.close()
-#   if fnext_in:
-#     fnext_in.close()
-
-#   sorted_lat_idx = nc_lat.argsort()
-#   sorted_lon_idx = nc_lon.argsort()
-
-#   var_out = var_out[:, sorted_lat_idx, :]
-#   var_out = var_out[:, :, sorted_lon_idx]
-
-#   return np.squeeze(var_out)
-#   # return np.squeeze(var_out)
-
-
-#     # # nc_var = f_in.variables[varname][off_curr:off_curr+24, :, :, :]
-#     # nc_var = f_in.variables[varname]
-#     # ndim = f_in.variables[varname].ndim
-#     # dims = f_in.variables[varname].dimensions
-#     # shape = f_in.variables[varname].shape
-
-#     # if "level" in dims:
-#     #   print(dims.index("level"))
-#     # if "time" in dims:
-#     #   print(dims.index("time"))
-
-#     # var_slice = []
-#     # for dim, length in zip(dims, shape):
-#     #   print(dim, length)
-#     #   if dim == "time":
-#     #     var_slice.append(slice(off_curr, off_curr + cnt_curr))
-#     #   elif dim == "level":
-#     #     var_slice.append(slice(0, 1))
-#     #   else:
-#     #     var_slice.append(slice(length))
-#     # pp.pprint(var_slice)
-
-#     # var_values = f_in.variables[varname][var_slice]
-
-#     # print(ndim, dims, shape)
-
-#     # print(
-#     #   var_values.shape,
-#     #   np.squeeze(var_values).shape, 
-#     #   type(var_values),
-#     # )
+#----------------------------------------------------------------------
 
 
 #######################################################################
@@ -787,8 +376,8 @@ if __name__ == "__main__":
   print(params)
 
   fg_press = True
-  fg_temp  = True
-  fg_h2o   = False
+  fg_temp  = False
+  fg_h2o   = True
 
 
 
@@ -800,7 +389,7 @@ if __name__ == "__main__":
   # -------------------------
 
   nc_grid = gnc.NCGrid()
-  target_grid = gw.TGGrid()
+  tg_grid = gw.TGGrid()
 
   for date_curr in iter_dates(args.date_start, args.date_end):
     date_prev = date_curr - dt.timedelta(days=1)
@@ -888,60 +477,36 @@ if __name__ == "__main__":
     # ... Load NetCDF & target grids ...
     # ----------------------------------
     if not nc_grid.loaded:
-      # nc_grid.load(T.get_ncfiles(params.dirin, args.date_start))
-      # if not T is None:
       if T:
         variable = T
-      # elif not Q is None:
       elif Q:
         variable = Q
       else:
         variable = Psurf
       nc_grid.load(variable.get_ncfiles(params.dirin, args.date_start))
 
-    if not target_grid.loaded:
-      target_grid.load(nc_grid)
+    if not tg_grid.loaded:
+      tg_grid.load(nc_grid)
 
-    # idx = np.where(nc_grid.lon == target_grid.lon[0] + 360.)[0]
-    # print(
-    #   type(idx),
-    #   idx[0],
-    #   np.roll(nc_grid.lon, -(idx[0]), axis=-1)
-    # )
-
-
-    # print(
-    #   nc_grid.lat[0],
-    #   nc_grid.lat[-1],
-    #   np.flipud(nc_grid.lat)
-    #   # np.flip(var, axis=-2)
-    # )
-
-
-    # exit()
-
-
-
-
-
-    nstep = 24  # number of time steps per day
-    nday  = 3
-
-    deb = (date_prev.day - 1) * nstep
-    fin = (date_prev.day - 1) * nstep + nday * nstep
-    times = nc_grid.time[deb:fin]
+    # nstep = 24  # number of time steps per day
+    # nday  = 3
+    # deb = (date_prev.day - 1) * nstep
+    # fin = (date_prev.day - 1) * nstep + nday * nstep
+    # times = nc_grid.time[deb:fin]
     # pp.pprint(num2date(times))
 
     for i_lon, lon in enumerate(nc_grid.lon):
 
       fg_print = False
-      # if not (i_lon % 60):
-      if i_lon in range(700, 721):
+      # if i_lon in range(700, 721):
+      if not (i_lon % 60):
         fg_print = True
 
       if fg_print:
         print(F"\n{72*'~'}")
 
+      # Get dates closest to local time (f(lon)) and associated weight
+      # => to perform weighted mean
       dt_utc = lon2tutc(lon, date_curr, instru.tnode)
       if fg_print:
         print(F"UTC = {dt_utc}")
@@ -956,57 +521,121 @@ if __name__ == "__main__":
           F"{w_max:4.2f} x {dt_max} (t={t_max})"
         )
 
-      if fg_print:
-        print(F"Find NetCDF files to read")
-      # # Find which NetCDF to read and slices
-      # if dt_min.month == dt_max.month:
-      #   slc_time = ([t_min, t_max], )
-      #   for variable in (Psurf, Tsurf, T, Q):
-      #     variable.ncfiles = (variable.get_ncfiles(params.dirin, dt_min), )
-      # else:
-      #   slc_time = ([t_min, ], [t_max, ], )
-      #   for variable in (Psurf, Tsurf, T, Q):
-      #     variable.ncfiles = (
-      #       variable.get_ncfiles(params.dirin, dt_min),
-      #       variable.get_ncfiles(params.dirin, dt_max),
-      #     )
+      # Initialize wanted variables
       if dt_min.month == dt_max.month:
         dates = dt_min
       else:
         dates = (dt_min, dt_max)
 
       for variable in (Psurf, Tsurf, T, Q):
-        # if not variable is None:
         if variable:
+          # Find which NetCDF file(s) contain wanted date(s)
+          if fg_print:
+            print(F"Find NetCDF files to read")
           variable.ncfiles = variable.get_ncfiles(params.dirin, dates)
           # pp.pprint(variable.ncfiles)
+          # initialize output variables
+          if variable.outvalues is None:
+            variable.init_outval(tg_grid)
 
-      if fg_print:
-        print(F"Read Psurf, lon = {lon} ({i_lon})")
-      Psurf.ncvalues = gnc.read_netcdf(Psurf, nc_grid, i_lon, (t_min, t_max))
-      if fg_print:
-        print(
-          F"P (surf) : "
-          F"{Psurf.ncvalues.min():7.2f} hPa {Psurf.ncvalues.max():7.2f} hPa"
-          F"{Psurf.ncvalues.mean():7.2f} hPa {Psurf.ncvalues.std():7.2f} hPa"
-        )
+          # Read input data
+          if fg_print:
+            print(F"Read {variable.name}, lon = {lon} ({i_lon})")
+          variable.ncvalues = gnc.read_netcdf(
+            variable, nc_grid, i_lon, (t_min, t_max)
+          )
+          if fg_print:
+            variable.print_values()
 
-      if Psurf.outvalues is None:
-        Psurf.init_outval(target_grid)
+          # Compute output data
+          outvalues = compute_outdata(variable, w_min, w_max, nc_grid, fg_print)
+          # print(outvalues.shape)
+          if variable.mode == "2d":
+            variable.outvalues[..., i_lon] = outvalues
+            if fg_print:
+              variable.print_values("out")
+          else:
+            # if fg_print:
+            #   print(
+            #     F"3d: {outvalues.shape} "
+            #     F"{variable.outvalues[..., i_lon].shape} "
+            #     F"{outvalues.min()} {outvalues.max()} "
+            #   )
+            if fg_print:
+              print(F"Interpolate")
 
-      outvalues = np.empty(nc_grid.nlat)
-      if fg_print:
-        print(Psurf.ncvalues.shape, outvalues.shape)
-      outvalues = w_min * Psurf.ncvalues[0, :] + w_max * Psurf.ncvalues[1, :]
-      if fg_print:
-        print(outvalues.shape)
-        print(
-          F"P outval : "
-          F"{outvalues.min():7.2f} hPa {outvalues.max():7.2f} hPa"
-          F"{outvalues.mean():7.2f} hPa {outvalues.std():7.2f} hPa"
-        )
-      Psurf.outvalues[:, i_lon] = outvalues
+              print(outvalues.shape)
 
+              ftest = interp1d(
+                x=nc_grid.lev,
+                y=outvalues[:, :],
+                axis=0,
+                fill_value="extrapolate",
+              )
+
+              print(ftest(tg_grid.lev.getdata))
+
+
+
+
+              # levels = np.tile(tg_grid.lev, (tg_grid.nlat, 1)).T
+
+              # # shape = (10, 1)
+              # # print(
+              # #   # np.tile(tg_grid.lev, shape).T.shape,
+              # #   # np.tile(tg_grid.lev, shape).T
+              # #   levels.shape,
+              # #   levels,
+              # # )
+              # # cond = tg_grid.lev > Psurf.outvalues[:, i_lon]
+              # cond = levels <= Psurf.outvalues[:, i_lon]
+
+              # i_lat = 700
+              # # # pp.pprint(Psurf.outvalues[i_lat, i_lon])
+              # # pp.pprint(outvalues[:, i_lat])
+              # # # pp.pprint(levels[:, i_lat])
+              # # # pp.pprint(cond[:, i_lat])
+              # # # pp.pprint(cond)
+
+
+
+              # print(
+              #   np.diff(outvalues[..., i_lat])
+              # )
+
+
+
+              # # print(np.interp(
+              # #   tg_grid.lev,
+              # #   nc_grid.lev,
+              # #   outvalues[..., i_lat]
+              # # ))
+
+
+
+              # # interp_val = np.ma.empty((tg_grid.nlev, tg_grid.nlat))
+              # # interp_val.mask = True
+
+
+
+              # # interp_val[cond] = np.interp(
+              # #   tg_grid.lev,
+              # #   nc_grid.lev,
+              # #   outvalues
+              # # )
+
+              # # # T_tigr[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
+              # # #   P_tigr[:idx_Pmax+1],
+              # # #   nc_lev, Tpl[:, idx_lat, idx_lon]
+              # # # )
+
+
+              exit()
+
+
+
+
+      continue
 
 
       # if fg_print:
@@ -1018,9 +647,6 @@ if __name__ == "__main__":
       #     F"{T.ncvalues.min():7.2f} K {T.ncvalues.max():7.2f} K"
       #     F"{T.ncvalues.mean():7.2f }K {T.ncvalues.std():7.2f} K"
       #   )
-
-
-      continue
 
       # slc_time = ([t_min, ], [t_max, ], )
       # for variable in (Psurf, Tsurf, T, Q):

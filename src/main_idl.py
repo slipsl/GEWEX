@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 # from fortio import FortranFile
 from scipy.io import FortranFile
+from scipy.interpolate import interp1d
 from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
@@ -705,7 +706,7 @@ if __name__ == "__main__":
 
 
   fg_press = True
-  fg_temp  = False
+  fg_temp  = True
   fg_h2o   = False
 
   # ... Files and directories ...
@@ -857,6 +858,8 @@ if __name__ == "__main__":
           F"{Qpl.min():11.4e} {Qpl.max():11.4e} {Qpl.mean():11.4e}"
         )
 
+        print()
+
       freemem()
 
       # it = np.nditer(Tsurf, flags=["multi_index"])
@@ -888,11 +891,33 @@ if __name__ == "__main__":
             idx_Pmin = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()
             idx_Pmax = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()
 
+            # if np.all(np.diff(Tpl[:, idx_lat, idx_lon]) >= 0.):
+            #   pass
+            # elif np.all(np.diff(Tpl[:, idx_lat, idx_lon]) <= 0.):
+            #   print(
+            #     F"{72*'*'}"
+            #     F"Monotonic decreasing T data ({idx_lat}, {idx_lon})\n"
+            #     F"{72*'*'}"
+            #   )
+            # else:
+            #   print(
+            #     F"{72*'*'}"
+            #     F"Non monotonic T data ({idx_lat}, {idx_lon})\n"
+            #     F"{72*'*'}"
+            #   )
+
             T_tigr[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
               P_tigr[:idx_Pmax+1],
               nc_lev, Tpl[:, idx_lat, idx_lon]
             )
             T_tigr[idx_Pmax+1:, idx_lat, idx_lon] = Tsurf[idx_lat, idx_lon]
+
+
+            ftest = interp1d(
+              x=nc_lev,
+              y=Tpl[:, idx_lat, idx_lon],
+              fill_value="extrapolate",
+            )
 
 
             # # T_tigr = np.empty([nlev+2], dtype=float)
@@ -911,12 +936,15 @@ if __name__ == "__main__":
 
             if idx_lat % 60 == 0 and idx_lon % 120 == 0:
               print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
-              # print(Tpl[:, idx_lat, idx_lon])
+              print(Tpl[:, idx_lat, idx_lon])
               print("==>")
+              print(ftest)
               for T, P in zip(T_tigr[:, idx_lat, idx_lon], P_tigr):
                 print(F"T({P}) = {T:7.2f}", end=" ; ")
+                print(ftest(P))
               print(F"T(n+1) = {T_tigr[nlev, idx_lat, idx_lon]:7.2f}", end=" ; ")
               print(F"T(n+2) = {T_tigr[nlev+1, idx_lat, idx_lon]:7.2f}")
+
 
             if Psurf[idx_lat, idx_lon] >= P_tigr[-1]:
               print("extrapolate")
@@ -970,6 +998,21 @@ if __name__ == "__main__":
             # Q_tigr2[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
             #   P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
             # )
+            # if np.all(np.diff(Qpl[:, idx_lat, idx_lon]) >= 0.):
+            #   pass
+            # elif np.all(np.diff(Qpl[:, idx_lat, idx_lon]) <= 0.):
+            #   print(
+            #     F"{72*'*'}"
+            #     F"Monotonic decreasing Q data ({idx_lat}, {idx_lon})\n"
+            #     F"{72*'*'}"
+            #   )
+            # else:
+            #   print(
+            #     F"{72*'*'}"
+            #     F"Non monotonic Q data ({idx_lat}, {idx_lon})\n"
+            #     F"{72*'*'}"
+            #   )
+
             Q_tigr[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
               P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
             )
