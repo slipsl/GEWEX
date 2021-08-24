@@ -16,6 +16,7 @@ from scipy.io import FortranFile
 # import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import colors as clr
+from matplotlib.backends.backend_pdf import PdfPages
 # from mpl_toolkits.basemap import Basemap
 # from netCDF4 import Dataset
 import pprint
@@ -74,8 +75,8 @@ def get_arguments():
     help="Date: YYYYMMJJ"
   )
   parser.add_argument(
-    "-c", "--contour", action="store_true",
-    help="Use contour instead of scatter plot"
+    "-s", "--scatter", action="store_true",
+    help="Use scatter plot instead of contour"
   )
   parser.add_argument(
     "-v", "--verbose", action="store_true",
@@ -92,11 +93,26 @@ def cm2inch(x):
 
 
 #----------------------------------------------------------------------
-def read_f77(filein, grid):
+def read_f77(variable, filein, grid):
 
   with FortranFile(filein, "r", header_dtype=">u4") as f:
     rec = f.read_record(dtype=">f4")
-  var_out = rec.reshape(grid.nlon, grid.nlat).T
+
+
+  if variable.mode == "2d":
+    shape = (grid.nlon, grid.nlat)
+  else:
+    if variable.name == "temp":
+      shape = (grid.nlev+2, grid.nlon, grid.nlat)
+    else:
+      shape = (grid.nlev, grid.nlon, grid.nlat)
+
+  # var_out = np.rollaxis(rec, -1, -2)
+  # var_out = rec.reshape(grid.nlon, grid.nlat).T
+  # var_out = np.rollaxis(rec.reshape(shape), -1, -2)
+  var_out = rec.reshape(shape)
+  if variable.mode == "3d":
+    var_out = np.rollaxis(var_out, 0, 3)
 
   return var_out
 
@@ -119,16 +135,16 @@ def read_f77(filein, grid):
 
 
 #----------------------------------------------------------------------
-def prep_data(var_in, grid, fg_cntr=True):
+def prep_data(var_in, grid, fg_scatter=False):
 
-  if fg_cntr:
-    X = grid.lon
-    Y = grid.lat
-    Z = var_in
-  else:
-    X = np.tile(grid.lon, grid.lat.size)
-    Y = np.repeat(grid.lat, grid.lon.size)
-    Z = var_in.flatten()
+  if fg_scatter:
+    lon = grid.lon[::4]
+    lat = grid.lat[::4]
+    X = np.tile(lon, len(lat))
+    Y = np.repeat(lat, len(lon))
+    # X = np.tile(grid.lon[::4], int(grid.lat.size/4))
+    # Y = np.repeat(grid.lat[::4], int(grid.lon.size/4))
+    Z = var_in[::4, ::4].T.flatten()
     # X = np.empty(var_in.size)
     # Y = np.empty(var_in.size)
     # Z = np.empty(var_in.size)
@@ -139,17 +155,27 @@ def prep_data(var_in, grid, fg_cntr=True):
     #   X[i] = grid.lon[ilon]
     #   Y[i] = grid.lat[ilat]
     #   Z[i] = x
+  else:
+    X = grid.lon  #[::4]
+    Y = grid.lat  #[::4]
+    Z = var_in.T
 
-  return (X, Y, Z)
+  # print(
+  #   X.shape,
+  #   Y.shape,
+  #   Z.shape,
+  # )
+
+  return (X.copy(), Y.copy(), Z.copy())
 
 
 #----------------------------------------------------------------------
-def plot_data(fg_cntr, ax, X, Y, Z, cmap, norm, title, nb=30):
+def plot_data(fg_scatter, ax, X, Y, Z, cmap, norm, title, nb=30):
 
-  if fg_cntr:
-    im = contour_plot(ax, X, Y, Z, cmap, title, nb=nb)
-  else:
+  if fg_scatter:
     im = scatter_plot(ax, X, Y, Z, cmap, norm, title)
+  else:
+    im = contour_plot(ax, X, Y, Z, cmap, title, nb=nb)
   # im = ax.scatter(x=X, y=Y, c=Z, cmap=cmap, norm=norm)
   cb = fig.colorbar(im, ax=ax)
   ax.set_title(title, loc="left")
@@ -232,6 +258,32 @@ def config_axcb(ax, cb, X, Y):
   ax.set_ylim([float(ymin), float(ymax)])
 
 
+#----------------------------------------------------------------------
+def config_plot(fig, fig_title, now):
+
+  plt.suptitle(fig_title)
+  fig.text(
+    0.98, 0.02,
+    # "test",
+    F"{now:%d/%m/%Y %H:%M:%S}",
+    # F"{dt.datetime.now():%d/%m/%Y %H:%M:%S}",
+    fontsize=8,
+    fontstyle="italic",
+    ha="right",
+  )
+
+  # set the spacing between subplots
+  # fig.tight_layout()
+  plt.subplots_adjust(
+    left=0.075,    # 0.125    left side of the subplots of the figure
+    right=0.950,   # 0.900    right side of the subplots of the figure
+    bottom=0.090,  # 0.110    bottom of the subplots of the figure
+    top=0.900,     # 0.880    top of the subplots of the figure
+    wspace=0.150,  # 0.200    amount of width reserved for space between subplots
+    hspace=0.300,  # 0.200    amount of height reserved for space between subplots
+  )
+
+
 
 #######################################################################
 
@@ -249,7 +301,6 @@ if __name__ == "__main__":
   dir_img = project_dir.joinpath("img")
   dir_idl = project_dir.joinpath("output", "exemples")
 
-
   cmap_plot = "coolwarm"
   cmap_diff = "seismic"
   # cmap_diff = "RdGy"
@@ -265,12 +316,34 @@ if __name__ == "__main__":
   print(instru)
   print(params)
 
+
   variable = gw.Variable(args.varname, instru)
   print(variable)
 
-  if variable.mode == "3d":
-    print("3D variable not implemented yet")
-    # exit()
+  if variable.mode == "2d":
+    pl = {
+       650: {"nc": 24, "tg": 16},
+    }
+  else:
+    pl = {
+        70: {"nc": 9, "tg": 0},
+       100: {"nc": 10, "tg": 2},
+       125: {"nc": 11, "tg": 3},
+       175: {"nc": 13, "tg": 4},
+       200: {"nc": 14, "tg": 5},
+       225: {"nc": 15, "tg": 6},
+       250: {"nc": 16, "tg": 7},
+       300: {"nc": 17, "tg": 9},
+       350: {"nc": 18, "tg": 10},
+       650: {"nc": 24, "tg": 16},
+       800: {"nc": 28, "tg": 18},
+       850: {"nc": 30, "tg": 19},
+       900: {"nc": 32, "tg": 20},
+       950: {"nc": 34, "tg": 21},
+      1000: {"nc": 36, "tg": 22},
+      2000: {"nc": 36, "tg": 23},
+      3000: {"nc": 36, "tg": 24},
+    }
 
   # print(variable.get_ncfiles(params.dirin, args.date))
   # print(variable.pathout(params.dirout, args.date))
@@ -321,8 +394,10 @@ if __name__ == "__main__":
     nrows = 3
     ncols = 1
   else:
+    # figsize = A4R
     figsize = A4L
     nrows = 3
+    # ncols = 1
     ncols = 3
 
 
@@ -336,10 +411,14 @@ if __name__ == "__main__":
   # cbars = {}
   # imags = {}
 
+  # print(F"axes: {axes}")
+
+  pdf = PdfPages(dir_img.joinpath(F"{img_name}.pdf"))
+
 
 
   print("Read input files")
-  # ========================
+  # ====================================================================
 
   print(" - netcdf")
   # ------------------------
@@ -356,130 +435,184 @@ if __name__ == "__main__":
   print(" - python")
   # ------------------------
   variable.pyvalues = \
-      read_f77(variable.pyfile, tg_grid)
+      read_f77(variable, variable.pyfile, tg_grid)
+      # read_f77(variable.pyfile, tg_grid)
   print(variable.pyvalues.shape)
 
   if fg_idl:
     print(" - idl")
     # ------------------------
     variable.idlvalues = \
-        read_f77(variable.idlfile, tg_grid)
+        read_f77(variable, variable.idlfile, tg_grid)
+        # read_f77(variable.idlfile, tg_grid)
     print(variable.idlvalues.shape)
+  else:
+    variable.idlvalues = []
 
 
   print("Prepare data")
-  # ========================
-  if args.mode == "plot":
-    print(" - netcdf")
-    # ------------------------
-    (X0, Y0, Z0) = prep_data(variable.ncvalues, tg_grid, args.contour)
-    print(Z0.mean(), Z0.std())
-    norm0 = None
-    title0 = "netcdf"
-    print(" - python")
-    # ------------------------
-    (X1, Y1, Z1) = prep_data(variable.pyvalues, tg_grid, args.contour)
-    print(Z1.mean(), Z1.std())
-    norm1 = None
-    title1 = "python"
-    if fg_idl:
-      print(" - idl")
-      # ------------------------
-      (X2, Y2, Z2) = prep_data(variable.idlvalues, tg_grid, args.contour)
-      print(Z2.mean(), Z2.std())
-      norm2 = None
-      title2 = "idl"
-  else:
-    print(" - (netcdf - python)")
-    # ------------------------
-    (X0, Y0, Z0) = prep_data(
-      variable.ncvalues - variable.pyvalues, tg_grid, args.contour
-    )
-    print(Z0.mean(), Z0.std())
-    norm0 = clr.TwoSlopeNorm(vcenter=0., vmin=Z0.min(), vmax=Z0.max())
-    title0 = "nc - py"
-    if fg_idl:
-      print(" - (netcdf - idl)")
-      # ------------------------
-      (X1, Y1, Z1) = prep_data(
-        variable.ncvalues - variable.idlvalues, tg_grid, args.contour
-      )
-      print(Z1.mean(), Z1.std())
-      norm1 = clr.TwoSlopeNorm(vcenter=0., vmin=Z1.min(), vmax=Z1.max())
-      title1 = "nc - idl"
-      print(" - (idl - python)")
-      # ------------------------
-      (X2, Y2, Z2) = prep_data(
-        variable.idlvalues - variable.pyvalues, tg_grid, args.contour
-      )
-      print(Z2.mean(), Z2.std())
-      norm2 = clr.TwoSlopeNorm(vcenter=0., vmin=Z2.min(), vmax=Z2.max())
-      title2 = "idl - py"
+  # ====================================================================
 
-  print("Plot data")
-  # ========================
-  plot_data(args.contour, axes[0], X0, Y0, Z0, cmap, norm0, title0)
-  plot_data(args.contour, axes[1], X1, Y1, Z1, cmap, norm1, title1)
-  plot_data(args.contour, axes[2], X2, Y2, Z2, cmap, norm2, title2)
-  # scatter_plot(axes[0], X0, Y0, Z0, cmap, norm0, title0)
-  # scatter_plot(axes[1], X1, Y1, Z1, cmap, norm1, title1)
-  # scatter_plot(axes[2], X2, Y2, Z2, cmap, norm2, title2)
+  # data = []
+  # titles = []
+
+  for key, lev in pl.items():
+    if lev["tg"] < tg_grid.nlev:
+      print(
+        key,
+        nc_grid.lev[lev["nc"]],
+        tg_grid.lev[lev["tg"]],
+      )
+    else:
+      print(
+        key,
+        lev["nc"],
+        lev["tg"],
+      )
+
+    if variable.mode == "2d":
+      ncvalues = variable.ncvalues
+      pyvalues = variable.pyvalues
+      if fg_idl:
+        idlvalues = variable.idlvalues
+    else:
+      ncvalues = variable.ncvalues[..., lev["nc"]]
+      pyvalues = variable.pyvalues[..., lev["tg"]]
+      if fg_idl:
+        idlvalues = variable.idlvalues[..., lev["tg"]]
+
+    if args.mode == "plot":
+      norm = None
+      titles = ["netcdf", "python", ]
+      data = [ncvalues, pyvalues, ]
+      if fg_idl:
+        titles.append("idl", )
+        data.append(idlvalues, )
+    else:
+      norm = True
+      titles = ["nc - py", ]
+      data = [ncvalues - pyvalues, ]
+      if fg_idl:
+        titles.extend(("nc - idl", "idl - py", ))
+        data.extend((
+          ncvalues - idlvalues,
+          idlvalues - pyvalues,
+        ))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  exit()
+
+  for idx, (title, values) in enumerate(zip(titles, data)):
+    # print(title, values.shape)
+    print(F" - {title}")
+    (X, Y, Z) = prep_data(values, tg_grid, args.scatter)
+    print(F"mean = {Z.mean():.2e} ; std = {Z.std():.2e}")
+    if norm:
+      norm = clr.TwoSlopeNorm(vcenter=0., vmin=Z.min(), vmax=Z.max())
+    print(F"norm = {norm}")
+
+    plot_data(args.scatter, axes.T.flatten()[idx], X, Y, Z, cmap, norm, title)
+    # plot_data(args.scatter, axes[idx], X, Y, Z, cmap, norm, title)
+
+  # plt.show()
+
+  # if args.mode == "plot":
+  #   if variable.mode == "2d":
+  #     ncvalues = variable.ncvalues
+  #     pyvalues = variable.pyvalues
+  #     idlvalues = variable.idlvalues
+  #   else:
+  #     ncvalues = variable.ncvalues[..., pl["650"]["nc"]]
+  #     pyvalues = variable.pyvalues[..., pl["650"]["tg"]]
+  #     idlvalues = variable.idlvalues[..., pl["650"]["tg"]]
+
+  #   offset = 0.
+  #   # if variable.name == "temp":
+  #   #   offset = -273.15
+
+  #   print(" - netcdf")
+  #   # ------------------------
+  #   (X0, Y0, Z0) = prep_data(ncvalues + offset, tg_grid, args.scatter)
+  #   print(Z0.mean(), Z0.std())
+  #   norm0 = None
+  #   title0 = "netcdf"
+  #   print(" - python")
+  #   # ------------------------
+  #   (X1, Y1, Z1) = prep_data(pyvalues + offset, tg_grid, args.scatter)
+  #   print(Z1.mean(), Z1.std())
+  #   norm1 = None
+  #   title1 = "python"
+  #   if fg_idl:
+  #     print(" - idl")
+  #     # ------------------------
+  #     (X2, Y2, Z2) = prep_data(idlvalues + offset, tg_grid, args.scatter)
+  #     print(Z2.mean(), Z2.std())
+  #     norm2 = None
+  #     title2 = "idl"
+  # else:
+  #   print(" - (netcdf - python)")
+  #   # ------------------------
+  #   (X0, Y0, Z0) = prep_data(
+  #     variable.ncvalues - variable.pyvalues, tg_grid, args.scatter
+  #   )
+  #   print(Z0.mean(), Z0.std())
+  #   norm0 = clr.TwoSlopeNorm(vcenter=0., vmin=Z0.min(), vmax=Z0.max())
+  #   title0 = "nc - py"
+  #   if fg_idl:
+  #     print(" - (netcdf - idl)")
+  #     # ------------------------
+  #     (X1, Y1, Z1) = prep_data(
+  #       variable.ncvalues - variable.idlvalues, tg_grid, args.scatter
+  #     )
+  #     print(Z1.mean(), Z1.std())
+  #     norm1 = clr.TwoSlopeNorm(vcenter=0., vmin=Z1.min(), vmax=Z1.max())
+  #     title1 = "nc - idl"
+  #     print(" - (idl - python)")
+  #     # ------------------------
+  #     (X2, Y2, Z2) = prep_data(
+  #       variable.idlvalues - variable.pyvalues, tg_grid, args.scatter
+  #     )
+  #     print(Z2.mean(), Z2.std())
+  #     norm2 = clr.TwoSlopeNorm(vcenter=0., vmin=Z2.min(), vmax=Z2.max())
+  #     title2 = "idl - py"
+
+
+  # print("Plot data")
+  # # ====================================================================
+  # plot_data(args.scatter, axes[0], X0, Y0, Z0, cmap, norm0, title0)
+  # plot_data(args.scatter, axes[1], X1, Y1, Z1, cmap, norm1, title1)
+  # plot_data(args.scatter, axes[2], X2, Y2, Z2, cmap, norm2, title2)
 
 
   print("Plot config")
-  # ========================
-  plt.suptitle(fig_title)
+  # ====================================================================
   now = dt.datetime.now()
-  fig.text(
-    0.98, 0.02,
-    # "test",
-    F"{now:%d/%m/%Y %H:%M:%S}",
-    # F"{dt.datetime.now():%d/%m/%Y %H:%M:%S}",
-    fontsize=8,
-    fontstyle="italic",
-    ha="right",
-  )
+  config_plot(fig, fig_title, now)
 
-  # grid = tg_grid
-  # (lat_min, lon_min) = (floor(l) for l in (grid.lat.min(), grid.lon.min()))
-  # (lat_max, lon_max) = (ceil(l)  for l in (grid.lat.max(), grid.lon.max()))
-  # # lat_min = floor(grid.lat.min())
-  # # lat_max = ceil(grid.lat.max())
-  # # lon_min = floor(grid.lon.min())
-  # # lon_max = ceil(grid.lon.max())
-  # for ax in axes:
-  #   ax.tick_params(axis='both', which='major', labelsize=8)
-  #   ax.tick_params(axis='x', labelrotation=45)
-  #   # ax.tick_params(axis='both', which='minor', labelsize=8)
-
-  #   ax.set_xlim([float(lon_min), float(lon_min) + 360.])
-  #   ax.set_ylim([float(lat_min), float(lat_max)])
-  #   ax.set_xticks(range(lon_min, lon_max + 1, 30))
-  #   ax.set_yticks(range(lat_min, lat_max + 1, 30))
-  #   # ax.set_xlim([grid.lon.min(), grid.lon.min() + 360.])
-  #   # ax.set_ylim([grid.lat.min(), grid.lat.max()])
-  #   # ax.set_xticks(
-  #   #   range(floor(grid.lon.min()), ceil(grid.lon.max())+1, 30)
-  #   # )
-  #   # ax.set_yticks(
-  #   #   range(floor(grid.lat.min()), ceil(grid.lat.max())+1, 30)
-  #   # )
-  # for cb in cbars.values():
-  #   cb.ax.tick_params(labelsize=8)
-
-  # set the spacing between subplots
-  # fig.tight_layout()
-  plt.subplots_adjust(
-    left=0.075,    # 0.125    left side of the subplots of the figure
-    right=0.950,   # 0.900    right side of the subplots of the figure
-    bottom=0.090,  # 0.110    bottom of the subplots of the figure
-    top=0.900,     # 0.880    top of the subplots of the figure
-    wspace=0.150,  # 0.200    amount of width reserved for space between subplots
-    hspace=0.300,  # 0.200    amount of height reserved for space between subplots
-  )
-
-  print(F"Save fig {now:%d/%m/%Y %H:%M:%S}")
+  print(F"Save fig {now:%d/%m/%Y %H:%M:%S} / {img_name}")
   # ========================
+
+  pdf.savefig(dpi=75)
+
+  pdf.close()
+
   # plt.show()
   fig.savefig(
     # "P_plot.png",
@@ -488,156 +621,3 @@ if __name__ == "__main__":
     # bbox_inches="tight",
   )
 
-
-  # plt.show()
-
-
-  exit()
-
-
-
-# fig, (ax1, ax2, ax3) = plt.subplots(
-fig, ((ax1, ax4), (ax2, ax5), (ax3, ax6)) = plt.subplots(
-  # figsize=(15, 10), dpi=300
-  figsize=(cm2inch(21.0), cm2inch(29.7)),
-  nrows=3, ncols=2,
-  # sharex="all",
-  # sharey="all",
-  # dpi=300,
-)
-
-lat = np.array([i / 4. for i in range(-90*4, 90*4+1)])
-lon = np.array([i / 4. for i in range(-180*4, 180*4)])
-nlat = len(lat)
-nlon = len(lon)
-
-# cond = lon < 0.
-# lon[cond] = lon[cond] + 360.  # 0. <= lon < 360.
-
-dirnc = Path(os.path.join("input", "AN_SF", "2008"))
-filenc = dirnc.joinpath(
-  "sp.200802.as1e5.GLOBAL_025.nc"
-)
-
-fileout = "unmasked_ERA5_AIRS_V6_L2_P_surf_daily_average.20080220.PM_05"
-dirold = Path(os.path.join("output", "exemples"))
-fileold = dirold.joinpath(fileout)
-dirnew = Path(os.path.join("output", "2008", "02"))
-filenew = dirnew.joinpath(fileout)
-
-# fileold = project_dir.joinpath("Ptest.dat")
-
-
-print("Read netcdf")
-# ========================
-Pnc = read_netcdf(filenc, "sp")
-
-print("Prepare data")
-# ========================
-(X, Y, Z) = prep_data(Pnc)
-print(
-  Z.mean(), Z.std()
-)
-
-print("Plot data")
-# ========================
-# ax2.subplot(312)
-im1 = ax1.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
-cb1 = fig.colorbar(im1, ax=ax1)
-im4 = ax4.contourf(lon, lat, Pnc, 12, cmap=cmap_plot)
-cb4 = fig.colorbar(im4, ax=ax4)
-ax1.set_title("P_netcdf")
-
-
-print("Read original output file")
-# ========================
-Pold = read_f77(fileold)
-
-print("Prepare data")
-# ========================
-(X, Y, Z) = prep_data(Pold)
-
-print("Plot data")
-# ========================
-# ax2.subplot(312)
-im2 = ax2.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
-cb2 = fig.colorbar(im2, ax=ax2)
-im5 = ax5.contourf(lon, lat, Pold, 12, cmap=cmap_plot)
-cb5 = fig.colorbar(im5, ax=ax5)
-ax2.set_title("P_ori")
-
-
-print("Read new output file")
-# ========================
-Pnew = read_f77(filenew)
-
-print("Prepare data")
-# ========================
-(X, Y, Z) = prep_data(Pnew)
-
-print("Plot data")
-# ========================
-im3 = ax3.scatter(x=X, y=Y, c=Z, cmap=cmap_plot)
-cb3 = fig.colorbar(im3, ax=ax3)
-im6 = ax6.contourf(lon, lat, Pnew, 12, cmap=cmap_plot)
-cb6 = fig.colorbar(im6, ax=ax6)
-ax3.set_title("P_new")
-
-
-print("Plot config")
-# ========================
-plt.suptitle(F"Pression de surface (hPa)")
-now = dt.datetime.now()
-fig.text(
-  0.98, 0.02,
-  # "test",
-  F"{now:%d/%m/%Y %H:%M:%S}",
-  # F"{dt.datetime.now():%d/%m/%Y %H:%M:%S}",
-  fontsize=8,
-  fontstyle="italic",
-  ha="right",
-)
-
-# plt.setp(
-#   (ax1, ax2, ax3, ax4, ax5, ax6),
-#   # xlim=[0., 360.],
-#   # xticks=range(0, 361, 30),
-#   xlim=[-180., 180.],
-#   xticks=range(-180, 181, 30),
-#   ylim=[-90., 90.],
-#   yticks=range(-90, 91, 30),
-# )
-
-# We change the fontsize of minor ticks label
-for ax in (ax1, ax2, ax3, ax4, ax5, ax6):
-  ax.tick_params(axis='both', which='major', labelsize=8)
-  ax.tick_params(axis='x', labelrotation=45)
-  # ax.tick_params(axis='both', which='minor', labelsize=8)
-  ax.set_xlim([-180., 180.])
-  ax.set_ylim([-90., 90.])
-  ax.set_xticks(range(-180, 181, 30))
-  ax.set_yticks(range(-90, 91, 30))
-
-for cb in (cb1, cb2, cb3, cb4, cb5, cb6):
-  cb.ax.tick_params(labelsize=8)
-
-# set the spacing between subplots
-# fig.tight_layout()
-plt.subplots_adjust(
-  left=0.075,    # 0.125    left side of the subplots of the figure
-  right=0.950,   # 0.900    right side of the subplots of the figure
-  bottom=0.090,  # 0.110    bottom of the subplots of the figure
-  top=0.900,     # 0.880    top of the subplots of the figure
-  wspace=0.150,  # 0.200    amount of width reserved for space between subplots
-  hspace=0.300,  # 0.200    amount of height reserved for space between subplots
-)
-
-print(F"Save fig {now:%d/%m/%Y %H:%M:%S}")
-# ========================
-# plt.show()
-fig.savefig(
-  # "P_plot.png",
-  # dir_img.joinpath(img_name),
-  dir_img.joinpath(F"{img_name}.png"),
-  # bbox_inches="tight",
-)

@@ -160,14 +160,45 @@ class Variable(object):
     )
 
   # -------------------------------------------------------------------
+  def init_datas(self, ncgrid, tggrid): 
+
+    import numpy as np
+
+    if self.mode == "2d":
+      ncshape = tgshape = (ncgrid.nlat, ncgrid.nlon)
+    else:
+      ncshape = (ncgrid.nlev, ncgrid.nlat, ncgrid.nlon)
+      tgshape = (tggrid.nlev, ncgrid.nlat, ncgrid.nlon)
+
+    self.ncprofiles = np.full(ncshape, np.nan)
+    self.tgprofiles = np.full(tgshape, np.nan)
+
+
+  # -------------------------------------------------------------------
+  def init_w_mean(self, grid): 
+
+    import numpy as np
+
+    if self.mode == "2d":
+      shape = (grid.nlon, grid.nlat)
+    else:
+      shape = (grid.nlon, grid.nlat, grid.nlev)
+
+    self.w_mean = np.ma.empty(shape)
+    self.w_mean.mask = True
+
+  # -------------------------------------------------------------------
   def init_outval(self, grid): 
 
     import numpy as np
 
     if self.mode == "2d":
-      shape = (grid.nlat, grid.nlon)
+      shape = (grid.nlon, grid.nlat)
     else:
-      shape = (grid.nlev, grid.nlat, grid.nlon)
+      if self.name == "temp":
+        shape = (grid.nlon, grid.nlat, grid.nlev+2)
+      else:
+        shape = (grid.nlon, grid.nlat, grid.nlev)
 
     self.outvalues = np.ma.empty(shape)
     self.outvalues.mask = True
@@ -291,22 +322,25 @@ class TGGrid(object):
     self.loaded = True
 
     # Latitude: [-90 ; +90]
-    self.lat = np.ma.array(
+    # self.lat = np.ma.array(
+    self.lat = np.array(
       np.arange(-90., 90.1, 0.25),
-      mask=False,
+      # mask=False,
     )
     self.nlat = self.lat.size
 
     # Longitude: [-180 ; +180[
-    self.lon = np.ma.array(
+    # self.lon = np.ma.array(
+    self.lon = np.array(
       # np.arange(-180., 180., 0.25),
       np.arange(-179.75, 180.1, 0.25),
-      mask=False,
+      # mask=False,
     )
     self.nlon = self.lon.size
 
     # Level: 23 levels
-    self.lev = np.ma.array(
+    # self.lev = np.ma.array(
+    self.lev = np.array(
       [
          69.71,  86.07, 106.27, 131.20,
         161.99, 200.00, 222.65, 247.87,
@@ -315,7 +349,7 @@ class TGGrid(object):
         651.04, 724.78, 800.00, 848.69,
         900.33, 955.12, 1013.00,
       ],
-      mask=False,
+      # mask=False,
     )
     self.nlev = self.lev.size
 
@@ -373,11 +407,11 @@ def grid_nc2tg(var_in, nc_grid, tg_grid):
   # pp.pprint(l)
 
   # var_out = np.roll(var_out, -(imin-1), axis=-1)
-  var_out = np.roll(var_out, -imin, axis=-1)
+  var_out = np.roll(var_out, -imin, axis=0)
 
   # Latitudes
   # =========
-  var_out = np.flip(var_out, axis=-2)
+  var_out = np.flip(var_out, axis=1)
 
   return var_out.copy()
 
@@ -392,50 +426,7 @@ def grid_nc2tg(var_in, nc_grid, tg_grid):
 
 
 
-
-def get_arguments():
-  from argparse import ArgumentParser
-  from argparse import RawTextHelpFormatter
-
-  parser = ArgumentParser(
-    formatter_class=RawTextHelpFormatter
-  )
-  # parser.add_argument("project", action="store",
-  #                     help="Project name")
-  # parser.add_argument("center", action="store",
-  #                     help="Center name (idris/tgcc)")
-
-  parser.add_argument(
-    "runtype", action="store",
-    type=int,
-    choices=[1, 2, 3, 4],
-    help= "Run type:\n"
-          "  - 1 = AIRS / AM\n"
-          "  - 2 = AIRS / PM\n"
-          "  - 3 = IASI / AM\n"
-          "  - 4 = IASI / PM\n"
-  )
-  parser.add_argument(
-    "date_start", action="store",
-    type=lambda s: dt.datetime.strptime(s, '%Y%m%d'),
-    help="Start date: YYYYMMJJ"
-  )
-  parser.add_argument(
-    "date_end", action="store",
-    type=lambda s: dt.datetime.strptime(s, '%Y%m%d'),
-    help="End date: YYYYMMJJ"
-  )
-
-  parser.add_argument(
-    "-v", "--verbose", action="store_true",
-    help="verbose mode"
-  )
-
-  # parser.add_argument("-d", "--dryrun", action="store_true",
-  #                     help="only print what is to be done")
-  return parser.parse_args()
-
-
+"""
 #----------------------------------------------------------------------
 def print_pl(var1, var2):
 
@@ -967,566 +958,4 @@ def read_ERA5_netcdf(date_curr, lt_instru, varname):
 
 
 #######################################################################
-
-if __name__ == "__main__":
-
-  run_deb = dt.datetime.now()
-
-  # gives a single float value
-  print(psutil.cpu_percent())
-  # gives an object with many fields
-  print(psutil.virtual_memory())
-  # you can convert that object to a dictionary 
-  print(dict(psutil.virtual_memory()._asdict()))
-  # you can have the percentage of used RAM
-  print(psutil.virtual_memory().percent)
-  # you can calculate percentage of available memory
-  print(psutil.virtual_memory().available * 100 / psutil.virtual_memory().total)
-
-
-
-  # .. Initialization ..
-  # ====================
-  # ... Command line arguments ...
-  # ------------------------------
-  args = get_arguments()
-  if args.verbose:
-    print(args)
-
-  # print(type(args.date_start))
-  # print(type(args.date_end))
-
-  # date_start = dt.datetime.strptime(args.date_start, "%Y%m%d")
-  # date_end = dt.datetime.strptime(args.date_end, "%Y%m%d")
-
-  # print("year:  ", args.date_start.year)
-  # print("month: ", args.date_start.month)
-
-  # ... Constants ...
-  # -----------------
-  P_tigr = [
-      69.71,
-      86.07,
-     106.27,
-     131.20,
-     161.99,
-     200.00,
-     222.65,
-     247.87,
-     275.95,
-     307.20,
-     341.99,
-     380.73,
-     423.85,
-     471.86,
-     525.00,
-     584.80,
-     651.04,
-     724.78,
-     800.00,
-     848.69,
-     900.33,
-     955.12,
-    1013.00,
-  ]
-
-  if args.runtype == 1 or args.runtype == 2 :
-    instrument = "AIRS_V6"
-    coeff_h2o = 1000.0
-    if args.runtype == 1:
-      lt_instru = 1.5
-      ampm = "AM"
-    else:
-      lt_instru = 13.5
-      ampm = "PM"
-  else:
-    instrument = "IASI"
-    coeff_h2o = 1.0
-    if args.runtype == 3:
-      lt_instru = 9.5
-      ampm = "AM"
-    else:
-      lt_instru = 23.5
-      ampm = "PM"
-
-  fileversion = "05"
-  pl_vars = ["ta", "q"]
-  sf_vars = ["sp", "skt"]
-
-  outstr = {
-    "temp"  : "L2_temperature_daily_average",
-    "h2o"   : "L2_H2O_daily_average",
-    "press" : "L2_P_surf_daily_average",
-    "stat"  : "L2_status",
-  }
-
-
-  fg_temp  = True
-  fg_press = True
-  fg_h2o   = True
-
-  # ... Files and directories ...
-  # -----------------------------
-
-  project_dir = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
-  )
-  dirin_bdd = os.path.normpath(
-    os.path.join(project_dir, "input")
-    # "/home_local/slipsl/GEWEX/input"
-    # "/home_local/slipsl/GEWEX/input"
-    # "/bdd/ERA5/NETCDF/GLOBAL_025/hourly"
-  )
-  dirin_pl = os.path.join(dirin_bdd, "AN_PL")
-  dirin_sf = os.path.join(dirin_bdd, "AN_SF")
-  dirout   = os.path.normpath(
-    os.path.join(project_dir, "output")
-  )
-  # dirout   = os.path.normpath(
-  #     "/data/slipsl/GEWEX/"
-  # )
-
-  if args.verbose:
-    print("dirin_pl: ", dirin_pl)
-    print("dirin_sf: ", dirin_sf)
-    print("dirout  : ", dirout)
-
-
-  # .. Main program ..
-  # ==================
-
-  a = np.arange(6).reshape(2,3)
-  print(a)
-  print(a.shape)
-
-  it = np.nditer(a, flags=['f_index'])
-  for x in it:
-    print(F"{x} <{it.index}>")
-
-  it = np.nditer(a, flags=['multi_index'])
-  for x in it:
-    # print("%d <%s>" % (x, it.multi_index), end=' ')
-    print(F"{x} <{it.multi_index}>")
-
-  date_curr = args.date_start
-
-  delta = 1 + (args.date_end - args.date_start).days
-
-  pp.pprint(
-    [args.date_start + dt.timedelta(days=i) for i in range(delta)]
-  )
-
-  iter_dates = (args.date_start + dt.timedelta(days=i) for i in range(delta))
-
-  # while date_curr <= args.date_end:
-  for date_curr in iter_dates:
-    date_prev = date_curr - dt.timedelta(days=1)
-    date_next = date_curr + dt.timedelta(days=1)
-
-    print(
-      F"{date_prev} < {date_curr} > {date_next}"
-    )
-
-    fg_process = True
-
-
-    # Define file names
-    pathout = Path(
-      os.path.join(
-        dirout,
-        F"{date_curr:%Y}",
-        F"{date_curr:%m}",
-      )
-    )
-
-
-    # Path(os.path.join('test_dir', 'level_1b', 'level_2b', 'level_3b')).mkdir(parents=True)
-
-    # Don’t forget these are all flags for the same function. In other words, we can use both exist_ok and parents flags at the same time!
-
-    # if not os.path.isdir(pathout):
-    if not pathout.exists():
-      print(F"Create output subdirectory: {pathout}")
-      pathout.mkdir(parents=True, exist_ok=True)
-
-    # for var in outstr.values():
-    #   print(get_fileout(var, date_curr))
-    #   filepath = os.path.join(pathout, get_fileout(var, date_curr))
-    #   print(filepath)
-    #   # Check if output exists
-    #   if os.path.isfile(filepath):
-    #     print(F"Output file exists. Please remove it and relaunch\n  {filepath}")
-    #     fg_process = False
-
-    if fg_process:
-
-      freemem()
-
-      if fg_temp:
-        Tpl = read_ERA5_netcdf(date_curr, lt_instru, "ta")
-        if Tpl is None:
-          print(F"Missing data, skip date")
-          break
-        print(Tpl.shape)
-        print(
-          F"T (pl)"
-          F"{Tpl.min():7.2f}K {Tpl.max():7.2f}K {Tpl.mean():7.2f}K"
-        )
-
-      freemem()
-
-      if fg_temp:
-        Tsurf = read_ERA5_netcdf(date_curr, lt_instru, "skt")
-        if Tsurf is None:
-          print(F"Missing data, skip date")
-          break
-        print(Tsurf.shape)
-        print(
-          F"T (surf)"
-          F"{Tsurf.min():7.2f}K {Tsurf.max():7.2f}K {Tsurf.mean():7.2f}K"
-        )
-
-      freemem()
-
-      if fg_press or fg_temp or fg_h2o:
-        Psurf = read_ERA5_netcdf(date_curr, lt_instru, "sp")
-        if Psurf is None:
-          print(F"Missing data, skip date")
-          continue
-        print(Psurf.shape)
-        Psurf = Psurf / 100.
-
-        print(
-          F"P (surf)"
-          F"{Psurf.min():7.2f}hPa {Psurf.max():7.2f}hPa {Psurf.mean():7.2f}hPa"
-        )
-
-      freemem()
-
-      if fg_h2o:
-        Qpl = read_ERA5_netcdf(date_curr, lt_instru, "q")
-        if Qpl is None:
-          print(F"Missing data, skip date")
-          continue
-        print(Qpl.shape)
-        print(
-          F"Q (pl)"
-          F"{Qpl.min():11.4e} {Qpl.max():11.4e} {Qpl.mean():11.4e}"
-        )
-
-      freemem()
-
-      # it = np.nditer(Tsurf, flags=["multi_index"])
-      # for x in it:
-      #   print((x, it.multi_index), end=' ')
-
-      nlat, nlon = Psurf.shape
-      print(nlat, nlon)
-
-      nlev = len(P_tigr)
-
-      nc_lev = [
-        1, 2, 3, 5, 7, 10, 20, 30, 50, 70, 100, 125, 150, 175, 200,
-        225, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
-        775, 800, 825, 850, 875, 900, 925, 950, 975, 1000,
-      ]
-
-
-      nc_lat = [i/4. for i in range(4*90, -4*91, -1)]
-      nc_lon = [i/4. for i in range(0, 360*4)]
-
-
-      if fg_temp:
-        status = np.full([nlat, nlon], 90000, dtype=int)
-        T_tigr = np.zeros([nlev+2, nlat, nlon], dtype=float)
-        for idx_lat in range(nlat):
-          for idx_lon in range(nlon):
-            cond = P_tigr <= Psurf[idx_lat, idx_lon]
-            idx_Pmin = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()
-            idx_Pmax = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()
-
-            T_tigr[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
-              P_tigr[:idx_Pmax+1],
-              nc_lev, Tpl[:, idx_lat, idx_lon]
-            )
-            T_tigr[idx_Pmax+1:, idx_lat, idx_lon] = Tsurf[idx_lat, idx_lon]
-
-
-            # # T_tigr = np.empty([nlev+2], dtype=float)
-            # # T_tigr = np.full([nlev+2], -1., dtype=float)
-            # # T_tigr = np.full([nlev], -1., dtype=float)
-            # # T_tigr = -1.
-            # # print(type(T_tigr))
-            # T_tigr[:nlev, idx_lat, idx_lon] = np.interp(
-            #   P_tigr, nc_lev, Tpl[:, idx_lat, idx_lon]
-            # )
-            # cond = P_tigr > Psurf[idx_lat, idx_lon]
-            # cond = np.append(cond, [True, True, ])
-            # # print(cond)
-            # T_tigr[cond] = Tsurf[idx_lat, idx_lon]
-            # status[idx_lat, idx_lon] = 10000
-
-            if idx_lat % 60 == 0 and idx_lon % 120 == 0:
-              print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
-              # print(Tpl[:, idx_lat, idx_lon])
-              print("==>")
-              for T, P in zip(T_tigr[:, idx_lat, idx_lon], P_tigr):
-                print(F"T({P}) = {T:7.2f}", end=" ; ")
-              print(F"T(n+1) = {T_tigr[nlev, idx_lat, idx_lon]:7.2f}", end=" ; ")
-              print(F"T(n+2) = {T_tigr[nlev+1, idx_lat, idx_lon]:7.2f}")
-
-            if Psurf[idx_lat, idx_lon] >= P_tigr[-1]:
-              print("extrapolate")
-              print(nc_lev[35:])
-              print(Tpl[35:, idx_lat, idx_lon])
-              (a, b) = np.polyfit(
-                x=nc_lev[35:],
-                y=Tpl[35:, idx_lat, idx_lon],
-                deg=1,
-              )
-              print(F"a = {a} ; b = {b} ; x = {P_tigr[22]}")
-              T_tigr[22, idx_lat, idx_lon] = (a * P_tigr[22] + b)
-              print(a * P_tigr[22] + b)
-
-        print(
-          F"T (tigr)"
-          F"{T_tigr.min():7.2f}K {T_tigr.max():7.2f}K {T_tigr.mean():7.2f}K"
-        )
-
-        fileout = os.path.join(pathout, get_fileout(outstr["temp"], date_curr))
-        print(F"Write output to {fileout}")
-
-        with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
-          f.write_record(
-            np.rollaxis(T_tigr, 2, 1).astype(dtype=">f4")
-          )
-
-      fileout = os.path.join(pathout, get_fileout("L2_P_surf_daily_average", date_curr))
-      print(F"Write output to {fileout}")
-
-      # print(Psurf)
-
-      # # f_out = FortranFile(fileout, mode="w")
-      # with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
-      #   f.write_record(Psurf.T.astype(dtype=">f4"))
-
-
-      if fg_h2o:
-        Q_tigr = np.zeros([nlev, nlat, nlon], dtype=float)
-        # Q_tigr2 = np.zeros([nlev, nlat, nlon], dtype=float)
-        # Q_tigr3 = np.zeros([nlev, nlat, nlon], dtype=float)
-        for idx_lat in range(nlat):
-          for idx_lon in range(nlon):
-            cond = P_tigr <= Psurf[idx_lat, idx_lon]
-            idx_Pmin = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()
-            idx_Pmax = np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()
-
-            # Q_tigr[:, idx_lat, idx_lon] = np.interp(
-            #   P_tigr, nc_lev, Qpl[:, idx_lat, idx_lon]
-            # )
-            # Q_tigr2[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
-            #   P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
-            # )
-            Q_tigr[:idx_Pmax+1, idx_lat, idx_lon] = np.interp(
-              P_tigr[:idx_Pmax+1], nc_lev, Qpl[:, idx_lat, idx_lon]
-            )
-            Q_tigr[idx_Pmax+1:, idx_lat, idx_lon] = Q_tigr[idx_Pmax, idx_lat, idx_lon]
-
-            if idx_lat % 60 == 0 and idx_lon % 120 == 0:
-              print(F"{idx_lat}/{idx_lon} - Psurf = {Psurf[idx_lat, idx_lon]}")
-            #   # print(len(cond))
-            #   # print(
-            #   #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].size}: "
-            #   #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].min()} - "
-            #   #   F"{np.where(P_tigr <= Psurf[idx_lat, idx_lon])[0].max()}"
-            #   # )
-            #   # print(
-            #   #   np.where(P_tigr <= Psurf[idx_lat, idx_lon])
-            #   # )
-              if Psurf[idx_lat, idx_lon] >= P_tigr[-1]:
-                # print("Exrapolate")
-                # print(
-                #   nc_lev[-2:],
-                #   Qpl[-2:, idx_lat, idx_lon] * coeff_h2o,
-                #   np.polyfit(
-                #     x=nc_lev[-2:],
-                #     y=Qpl[-2:, idx_lat, idx_lon],
-                #     deg=1,
-                #   )
-                # )
-                (a, b) = np.polyfit(
-                  x=nc_lev[-2:],
-                  y=Qpl[-2:, idx_lat, idx_lon],
-                  deg=1,
-                )
-                # print(
-                #   Q_tigr[-1, idx_lat, idx_lon] * coeff_h2o,
-                #   (a * P_tigr[-1] + b) * coeff_h2o,
-                # )
-
-            # if (nc_lon[idx_lon] == -19.25 and nc_lat[idx_lat] == 17.25) or \
-            #    (nc_lon[idx_lon] == -100.5 and nc_lat[idx_lat] == 14.5):
-            if (idx_lat == 291 and idx_lon == 1363) or \
-               (idx_lat == 302 and idx_lon == 402):
-              print(72*"*")
-              pp.pprint(
-                F"{Psurf[idx_lat, idx_lon]} / "
-                F"{nc_lat[idx_lat]} / "
-                F"{nc_lon[idx_lon]}"
-              )
-              # pp.pprint(Qpl[:, idx_lat, idx_lon])
-              # pp.pprint(Q_tigr[:, idx_lat, idx_lon])
-              print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr[:, idx_lat, idx_lon])
-              print(72*"-")
-
-            if Psurf[idx_lat, idx_lon] >= P_tigr[-1]:
-              print("extrapolate")
-              print(nc_lev[-2:])
-              print(Qpl[-2:, idx_lat, idx_lon])
-              (a, b) = np.polyfit(
-                x=nc_lev[-2:],
-                y=Qpl[-2:, idx_lat, idx_lon],
-                deg=1,
-              )
-              print(F"a = {a} ; b = {b} ; x = {P_tigr[-1]}")
-              Q_tigr[-1, idx_lat, idx_lon] = (a * P_tigr[-1] + b)
-              print(a * P_tigr[-1] + b)
-
-            if (idx_lon == 1363 and idx_lat == 291) or \
-               (idx_lon == 402 and idx_lat == 302):
-              print(72*"-")
-              print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr[:, idx_lat, idx_lon])
-              print(72*"*")
-
-
-            #     # print(
-            #     #   Qpl[:, idx_lat, idx_lon],
-            #     #   Q_tigr[:, idx_lat, idx_lon]
-            #     # )
-            #     print(72*"=")
-            #     print(Psurf[idx_lat, idx_lon])
-            #     print(72*"-")
-            #     print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr[:, idx_lat, idx_lon])
-            #     # print(72*"-")
-            #     # print_pl(Qpl[:, idx_lat, idx_lon], Q_tigr3[:, idx_lat, idx_lon])
-            #     print(72*"-")
-            #     print(Psurf[idx_lat, idx_lon], idx_Pmax)
-
-        Q_tigr = Q_tigr * coeff_h2o
-        print(
-          F"Q (tigr): "
-          F"{Q_tigr.min():11.4e} {Q_tigr.max():11.4e} {Q_tigr.mean():11.4e}"
-        )
-
-        fileout = os.path.join(pathout, get_fileout(outstr["h2o"], date_curr))
-        print(F"Write output to {fileout}")
-
-        # f_out = FortranFile(fileout, mode="w")
-        with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
-          f.write_record(
-            np.rollaxis(Q_tigr, 2, 1).astype(dtype=">f4")
-          )
-          # f.write_record(Q_tigr.T.astype(dtype=">f4"))
-
-
-
-
-
-
-
-
-
-        # T_tigr.extend(Tsurf[idx_lat, idx_lon], 0.)
-
-          # print(T_tigr)
-          # print(
-          #   [(x, y) for x, y in zip(Tpl[0:, idx_lat, idx_lon], Tpl[1:, idx_lat, idx_lon])]
-          # )
-          # print(
-          #   [x < y for x, y in zip(Tpl[0:, idx_lat, idx_lon], Tpl[1:, idx_lat, idx_lon])]
-          #   # all(x < y for x, y in zip(Tpl, Tpl[1:]))
-          #   # [x < y for x, y in zip(Tpl, Tpl[1:])].all()
-          # )
-
-
-        # if idx_lat % 60 == 0 and idx_lon % 60 == 0:
-        #   print(F"{idx_lat}/{idx_lon}: {cond}")
-
-    # cond = nc_lon[:] > 180.
-    # nc_lon[cond] = nc_lon[cond] - 360.
-
-
-
-    # # Define file names
-    # print(date_curr.year, date_curr.month)
-    # pathout = os.path.join(
-    #   dirout,
-    #   F"{date_curr:%Y}",
-    #   F"{date_curr:%m}",
-    # )
-    # for var in outstr.values():
-    #   print(get_fileout(var, date_curr))
-    #   filepath = os.path.join(pathout, get_fileout(var, date_curr))
-    #   print(filepath)
-    #   # Check if output exists
-    #   if os.path.isfile(filepath):
-    #     print(F"Output file exists. Please remove it and relaunch\n  {filepath}")
-    #     fg_process = False
-
-    # def_time_lon()
-
-
-    # Read "ta" (temperature, 3D)
-    # varname = "ta"
-    # variable = get_variable(varname, date_curr)
-
-    # Read "skt" (surface temperature, 2D)
-    # varname = "skt"
-    # variable = get_variable(varname, date_curr)
-
-    # Read "sp" (surface pressure, 2D)
-
-    # Process temperatures and Psurf
-
-    # Check temperatures
-
-    # Read "q" (specific humidity, 3D)
-    # Process "q"
-    # Check "q"
-
-
-
-
-
-    # pp.pprint(
-    #   [
-    #     get_filein(v, date_curr) for v in pl_vars + sf_vars
-    #   ]
-    # )
-
-    # read_netcdf(get_filein(sf_vars[0], date_curr))
-
-    # date_curr = date_curr + dt.timedelta(days=1)
-
-  print("\n"+72*"=")
-  print(f"Run ended in {dt.datetime.now() - run_deb}")
-
-  exit()
-
-# ********************************************************************************
-# 1020.802890625 [3.78422374e-06 3.26374834e-06 3.12803695e-06 3.46509478e-06
-#  3.40062434e-06 3.16598926e-06 2.76479523e-06 2.76553055e-06
-#  2.59047783e-06 2.35205493e-06 1.61622961e-06 2.52195787e-06
-#  3.09501547e-06 4.23539404e-06 6.26800693e-06 1.05665367e-05
-#  1.38216419e-05 2.38398079e-05 5.61349189e-05 8.99301958e-05
-#  1.06964842e-04 8.09465200e-05 1.16594922e-04 1.27383886e-04
-#  1.82292948e-04 1.11144455e-03 2.20645498e-03 2.18914961e-03
-#  1.93020550e-03 1.35288876e-03 1.28993182e-03 2.40233284e-03
-#  8.39262921e-03 1.12019610e-02 1.14798825e-02 1.15118129e-02
-#  1.15749948e-02] [2.35551207e-06 1.95789784e-06 1.84338626e-06 2.66407615e-06
-#  3.64194104e-06 6.26800693e-06 1.01624749e-05 1.35443070e-05
-#  1.90210701e-05 2.84903039e-05 5.09612421e-05 7.69054961e-05
-#  9.80557223e-05 9.55896319e-05 9.87707208e-05 1.24104041e-04
-#  2.01619301e-04 1.65413172e-03 1.93020550e-03 1.29323077e-03
-#  8.42971239e-03 1.14864219e-02 1.15749948e-02]
-# ********************************************************************************
+"""
