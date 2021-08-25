@@ -76,17 +76,20 @@ class GewexParam(object):
   # -------------------------------------------------------------------
   def __init__(self, project_dir):
 
+    from pathlib import Path
+    # import platform
+    import socket
+ 
     self.fileversion = "05"
 
-    self.dirin = project_dir.joinpath("input")
-    self.dirout = project_dir.joinpath("output")
+    # print(platform.node())
+    if "ciclad" in socket.gethostname():
+      self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
+      self.dirout = Path("/data/slipsl/GEWEX/ERA5_averages")
+    else:
+      self.dirin = project_dir.joinpath("input")
+      self.dirout = project_dir.joinpath("output")
 
-    # self.outstr = {
-    #   "temp"  : "L2_temperature_daily_average",
-    #   "h2o"   : "L2_H2O_daily_average",
-    #   "press" : "L2_P_surf_daily_average",
-    #   "stat"  : "L2_status",
-    # }
 
   # -------------------------------------------------------------------
   def __repr__(self):
