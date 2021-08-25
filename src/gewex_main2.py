@@ -24,11 +24,11 @@ import pprint
 
 
 import numpy as np
-import pandas as pd
+# import pandas as pd
 # from fortio import FortranFile
 from scipy.io import FortranFile
 from scipy.interpolate import interp1d
-from netCDF4 import Dataset
+# from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
 
@@ -79,15 +79,18 @@ def get_arguments():
     "-v", "--verbose", action="store_true",
     help="Verbose mode"
   )
-
   parser.add_argument(
     "-f", "--force", action="store_true",
     help="If output files exsist, replace them."
   )
+  parser.add_argument(
+    "--notemp", action="store_true",
+    help="Don't produce temperature files"
+  )
 
   parser.add_argument(
-    "-p", "--poids", action="store_true",
-    help="Produce weight file."
+    "--noh2o", action="store_true",
+    help="Don't produce spec. humidity files"
   )
 
   # parser.add_argument("-d", "--dryrun", action="store_true",
@@ -172,52 +175,114 @@ def date2idx(date, date1, date2):
 
 
 #----------------------------------------------------------------------
-def dt_bounds(date, mode="full"):
+def get_weight_indices(lon, date, node):
 
-  if mode not in ["date", "weight", "full"]:
-    raise("Invalid argument")
+    date_utc = np.array([
+      lon2tutc(l, date, node)
+      for l in lon
+    ])
 
-  date_min = date.replace(minute=0, second=0, microsecond=0)
-  date_max = date_min + dt.timedelta(hours=1)
+    date_bounds = np.array([
+      (utc2min(d), utc2max(d))
+      for d in date_utc
+    ])
 
-  delta_min = (date - date_min).total_seconds()
-  delta_max = (date_max - date).total_seconds()
+    weight = np.array([
+      date2weight(d, d1, d2)
+      for d, (d1, d2) in zip(date_utc, date_bounds)
+    ])
 
-  weight_min = 1. - (delta_min / (delta_min + delta_max))
-  weight_max = 1. - (delta_max / (delta_min + delta_max))
+    time_indices = np.array([
+      date2idx(date_bounds.min(), d1, d2)
+      for (d1, d2) in date_bounds
+    ])
 
-  if mode == "date":
-    ret = (date_min, date_max, )
-  elif mode == "weight":
-    ret = (weight_min, weight_max, )
-  else:
-    ret = (
-      (date_min, weight_min),
-      (date_max, weight_max)
-    )
-
-  return ret
+    return weight, time_indices, (date_bounds.min(), date_bounds.max())
 
 
 #----------------------------------------------------------------------
-def dt_idx(dates):
+def get_wght_mean(V, i, w, t):
 
-  step = 24  # netcdf number of time steps per day
+  t_min, t_max = t
+  w_min, w_max = w
 
-  return (d.hour + 24 * (d.day - 1) for d in dates)
+  # print(
+  #   t_min, t_max,
+  #   w_min, w_max,
+  #   V.ncdata[t_min, ..., i].shape,
+  #   V.ncdata[t_max, ..., i].shape,
+  # )
+
+  return (
+    w_min * V.ncdata[t_min, ..., i] +
+    w_max * V.ncdata[t_min, ..., i]
+  )
+
+  # print(
+  #   profile.shape
+  # )
+
+  # print(72*".")
+  # for j in range(0, profile.size, 20):
+  #   print(
+  #     j,
+  #     w_min,
+  #     V.ncdata[t_min, ..., j, i],
+  #     w_max,
+  #     V.ncdata[t_max, ..., j, i],
+  #     profile[..., j]
+  #   )
 
 
 #----------------------------------------------------------------------
-def dt_weight(date):
+def get_interp(V, i, j, ncgrid, tggrid, P0, V0):
+  pass
 
-  (date_min, date_max) = dt_bounds(date)
-  delta_min = (date - date_min).total_seconds()
-  delta_max = (date_max - date).total_seconds()
+  X = ncgrid.lev
+  Y = V.ncprofiles[..., j, i]
 
-  weight_min = 1. - (delta_min / (delta_min + delta_max))
-  weight_max = 1. - (delta_max / (delta_min + delta_max))
+  cond = tggrid.lev <= P0
 
-  return (weight_min, weight_max)
+  # tgprofile = np.full((tggrid.nlev, ), np.nan)
+
+  fn = interp1d(
+    x=X,
+    y=Y,
+    fill_value="extrapolate",
+  )
+
+  V.tgprofiles[cond, j, i] = fn(tggrid.lev[cond])
+
+  if not V0:
+    z = np.squeeze(np.argwhere(cond)[-1])
+    V0 = V.tgprofiles[z, j, i]
+    # V0 = tgprofile[np.squeeze(np.argwhere(cond)[-1])]
+
+
+  # print(
+  #   F"{tgprofile}\n"
+  #   F"{np.argwhere(~np.isnan(tgprofile))}\n"
+  #   F"{np.argwhere(cond)}\n"
+  #   # F""
+  #   F"V0 = {V0}"
+  # )
+
+  V.tgprofiles[~cond, j, i] = V0
+  # tgprofile[~cond] = V0
+
+  # exit()
+
+  # if variable.name == "temp":
+  #   V0 = Tsurf.outvalues[i_lon, i_lat]
+  # else:
+  #   V0 = tgprofile[np.squeeze(np.argwhere(tgprofile)[-1])]
+  # tgprofile[~cond] = V0
+  # variable.outvalues[i_lon, i_lat, :tg_grid.nlev] = tgprofile
+  # if variable.name == "temp":
+  #   variable.outvalues[i_lon, i_lat, tg_grid.nlev+1] = V0
+
+  return
+  # return tgprofile
 
 
 #----------------------------------------------------------------------
@@ -276,10 +341,11 @@ if __name__ == "__main__":
     print(instru)
     print(params)
 
-  fg_press = True
-  fg_temp  = True
-  fg_h2o   = True
-
+  # fg_press = True
+  # fg_temp  = True
+  # fg_h2o   = True
+  fg_temp  = not args.notemp
+  fg_h2o   = not args.noh2o
 
   # .. Main program ..
   # ==================
@@ -329,6 +395,10 @@ if __name__ == "__main__":
       outfiles.append(Q.pathout(params.dirout, date_curr))
     else:
       Q = None
+
+    var_list = tuple(
+      V for V in (Psurf, Tsurf, T, Q) if V
+    )
 
     # ... Check input files ...
     # -------------------------
@@ -389,29 +459,10 @@ if __name__ == "__main__":
     if not tggrid.loaded:
       tggrid.load(ncgrid)
 
-    date_utc = np.array([
-      lon2tutc(l, date_curr, instru.tnode)
-      for l in ncgrid.lon
-    ])
-
-    date_bounds = np.array([
-      (utc2min(d), utc2max(d))
-      for d in date_utc
-    ])
-
-    weight = np.array([
-      date2weight(d, d1, d2)
-      for d, (d1, d2) in zip(date_utc, date_bounds)
-    ])
-
-    time_indices = np.array([
-      date2idx(date_bounds.min(), d1, d2)
-      for (d1, d2) in date_bounds
-    ])
-
-    var_list = tuple(
-      V for V in (Psurf, Tsurf, T, Q) if V
-    )
+    # ... Compute f(lon, date) stuff ...
+    # ----------------------------------
+    weight, time_indices, (date_min, date_max) = \
+      get_weight_indices(ncgrid.lon, date_curr, instru.tnode)
 
     freemem()
 
@@ -420,13 +471,16 @@ if __name__ == "__main__":
       print(80*"~")
       print(F"Load nc data for {V.name}")
       V.ncdata = gnc.load_netcdf(
-        V, date_bounds.min(), date_bounds.max(), params
+        V, date_min, date_max, params
+        # V, date_bounds.min(), date_bounds.max(), params
       )
       freemem()
     code_stop = dt.datetime.now()
     print(code_stop - code_start)
 
 
+    print(80*"~")
+    print(F"Init datas")
     for V in var_list:
       print(V.ncdata.shape)
       V.init_datas(ncgrid, tggrid)
@@ -444,9 +498,64 @@ if __name__ == "__main__":
 
       if fg_print:
         print("Weighted nc mean")
+      for V in var_list:
+        V.get_wght_mean(i, weight[i], time_indices[i])
 
-      if fg_print:
-        print("for lat, interp")
+        if V.mode == "2d":
+          V.tgprofiles[..., i] = V.ncprofiles[..., i]
+          if fg_print:
+            print(
+              V.name,
+              np.nanmin(V.tgprofiles),
+              np.nanmax(V.tgprofiles),
+              np.nanmean(V.tgprofiles),
+            )
+        else:
+          if fg_print:
+            print("for lat, interp")
+          for j in range(ncgrid.nlat):
+            fg_print = not (i % 60) and not (j % 60)
+            if fg_print:
+              print(
+                F"lon = {ncgrid.lon[i]} ; "
+                F"lat = {ncgrid.lat[j]}"
+              )
+
+            if V.name == "temp":
+              V0 = Tsurf.tgprofiles[j, i]
+            else:
+              V0 = None
+
+            # V.tgprofiles[..., j, i] = get_interp(
+            #   V, i, j,
+            #   ncgrid, tggrid,
+            #   Psurf.tgprofiles[j, i], V0
+            # )
+            V.get_interp(
+              i, j, ncgrid, tggrid,
+              Psurf.tgprofiles[j, i], V0
+            )
+            # if fg_print:
+            #   print(V.name, V.tgprofiles[..., j, i])
+
+    print("Write files")
+    for V in var_list:
+      fileout = V.pathout(params.dirout, date_curr)
+      if fileout:
+        print(V.name, fileout)
+        values = gw.grid_nc2tg(V.tgprofiles, ncgrid, tggrid)
+        # print(values.shape, values.ndim)
+        # values = np.rollaxis(values, -1, -2)
+        # print(values.shape)
+        with FortranFile(
+          fileout,
+          # V.pathout(params.dirout, date_curr),
+          mode="w", header_dtype=">u4"
+        ) as f:
+          f.write_record(
+            np.rollaxis(values, -1, -2).astype(dtype=">f4")
+          )
+
 
   print("\n"+72*"=")
   print(f"Run ended in {dt.datetime.now() - run_deb}")

@@ -167,8 +167,12 @@ class Variable(object):
     if self.mode == "2d":
       ncshape = tgshape = (ncgrid.nlat, ncgrid.nlon)
     else:
+      if self.name == "temp":
+        tg_nlev = tggrid.nlev + 2
+      else:
+        tg_nlev = tggrid.nlev
       ncshape = (ncgrid.nlev, ncgrid.nlat, ncgrid.nlon)
-      tgshape = (tggrid.nlev, ncgrid.nlat, ncgrid.nlon)
+      tgshape = (tg_nlev, ncgrid.nlat, ncgrid.nlon)
 
     self.ncprofiles = np.full(ncshape, np.nan)
     self.tgprofiles = np.full(tgshape, np.nan)
@@ -292,6 +296,65 @@ class Variable(object):
       )
     print(string)
 
+  # -------------------------------------------------------------------
+  def get_wght_mean(self, i, w, t):
+
+    t_min, t_max = t
+    w_min, w_max = w
+
+    self.ncprofiles[..., i] = (
+      w_min * self.ncdata[t_min, ..., i] +
+      w_max * self.ncdata[t_min, ..., i]
+    )
+
+  # -------------------------------------------------------------------
+  def get_interp(self, i, j, ncgrid, tggrid, P0, V0):
+
+    import numpy as np
+    from scipy.interpolate import interp1d
+
+    X = ncgrid.lev
+    Y = self.ncprofiles[..., j, i]
+
+    cond = np.full(self.tgprofiles.shape[0], False)
+    cond[:tggrid.nlev] = tggrid.lev <= P0
+
+    fn = interp1d(
+      x=X,
+      y=Y,
+      fill_value="extrapolate",
+    )
+
+    # print(self.tgprofiles.shape[0])
+
+    self.tgprofiles[cond, j, i] = fn(tggrid.lev[cond[:tggrid.nlev]])
+
+    if not V0:
+      z = np.squeeze(np.argwhere(cond)[-1])
+      V0 = self.tgprofiles[z, j, i]
+      # V0 = tgprofile[np.squeeze(np.argwhere(cond)[-1])]
+
+    self.tgprofiles[~cond, j, i] = V0
+    # tgprofile[~cond] = V0
+
+    # exit()
+
+    # if variable.name == "temp":
+    #   V0 = Tsurf.outvalues[i_lon, i_lat]
+    # else:
+    #   V0 = tgprofile[np.squeeze(np.argwhere(tgprofile)[-1])]
+    # tgprofile[~cond] = V0
+    # variable.outvalues[i_lon, i_lat, :tg_grid.nlev] = tgprofile
+    # if variable.name == "temp":
+    #   variable.outvalues[i_lon, i_lat, tg_grid.nlev+1] = V0
+
+    # return
+    # return tgprofile
+
+
+
+
+
 
 class TGGrid(object):
   # -------------------------------------------------------------------
@@ -356,62 +419,64 @@ class TGGrid(object):
 # =====================================================================
 # =                            Functions                              =
 # =====================================================================
-def grid_nc2tg(var_in, nc_grid, tg_grid):
+def grid_nc2tg(var_in, ncgrid, tggrid):
   import numpy as np
 
   var_out = var_in
 
   # Longitudes
-  # ==========
-  print(nc_grid.lon[0])
-  print(nc_grid.lon[-1])
+  #   [0.; 360.[ => ]-180.; 180.]
+  # =============================
+  # print(ncgrid.lon[0])
+  # print(ncgrid.lon[-1])
 
-  print(tg_grid.lon[0])
-  print(tg_grid.lon[-1])
+  # print(tggrid.lon[0])
+  # print(tggrid.lon[-1])
 
-  # lon = nc_grid.lon.copy()
-  # cond = (nc_grid.lon >= 180.)
+  # lon = ncgrid.lon.copy()
+  # cond = (ncgrid.lon >= 180.)
   # lon[cond] = lon[cond] - 360.
   # print(lon)
 
   # # imin = np.argmin(lon)
   # # print(imin, lon[imin])
   # # print(np.roll(lon, -imin))
-  # # print(np.roll(nc_grid.lon, -imin))
-  # # print(tg_grid.lon)
+  # # print(np.roll(ncgrid.lon, -imin))
+  # # print(tggrid.lon)
 
-  # imin = np.squeeze(np.argwhere(lon == tg_grid.lon[0]))
+  # imin = np.squeeze(np.argwhere(lon == tggrid.lon[0]))
   # print("imin", imin)
   # print(
   #   np.roll(
   #     # lon,
-  #     nc_grid.lon,
+  #     ncgrid.lon,
   #     -imin
   #   )
   # )
 
-  lon_init = tg_grid.lon[0]
+  lon_init = tggrid.lon[0]
   if lon_init < 0.:
     lon_init = lon_init + 360.
-  imin = np.squeeze(np.argwhere(nc_grid.lon == lon_init))
+  imin = np.squeeze(np.argwhere(ncgrid.lon == lon_init))
 
   # print(
   #   "imin",
   #   imin,
-  #   np.roll(nc_grid.lon, -(imin))
+  #   np.roll(ncgrid.lon, -(imin))
   # )
 
-  # l = np.roll(nc_grid.lon, -(imin))
+  # l = np.roll(ncgrid.lon, -(imin))
   # cond = l > 180.
   # l[cond] = l[cond] - 360.
   # pp.pprint(l)
 
   # var_out = np.roll(var_out, -(imin-1), axis=-1)
-  var_out = np.roll(var_out, -imin, axis=0)
+  var_out = np.roll(var_out, -imin, axis=-1)
 
   # Latitudes
-  # =========
-  var_out = np.flip(var_out, axis=1)
+  #   [+90.; -90.] => [-90.; +90.]
+  # ==============================
+  var_out = np.flip(var_out, axis=-2)
 
   return var_out.copy()
 
