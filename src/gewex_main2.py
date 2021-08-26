@@ -114,15 +114,19 @@ def freemem():
     psutil.virtual_memory().available * 100 / psutil.virtual_memory().total
   )
   used = psutil.virtual_memory().used
+  used2 = psutil.virtual_memory().total - psutil.virtual_memory().available
   if used > 1024**3:
-    used = used / 1024**3
+    coeff = 1024**3
     units = "gb"
   else:
-    used = used / 1024**2
+    coeff = 1024**2
     units = "mb"
+  used = used / coeff
+  used2 = used2 / coeff
   print(
     F"Memory: Free = {free:.2f} % ; "
     F"Used = {used:.2f} {units}"
+    F" / Used = {used:.2f} {units}"
   )
   # print(
   #   F"Free memory = "

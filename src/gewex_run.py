@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
   filebase = (
     F"gewex_r{args.runtype}_"
-    F"{args.date_start:%Y%m%d}_{args.date_start:%Y%m%d}"
+    F"{args.date_start:%Y%m%d}_{args.date_end:%Y%m%d}"
   )
   runfile = dirout.joinpath(F"{filebase}.sh")
 
