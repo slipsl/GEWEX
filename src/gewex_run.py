@@ -195,8 +195,6 @@ if __name__ == "__main__":
     F"date",
   ]
 
-  pp.pprint(string_list)
-
   with open(runfile, "w") as f:
     for line in string_list:
       f.write(F"{line}\n")
