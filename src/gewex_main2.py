@@ -9,33 +9,30 @@
 # Modification:                                                        #
 # ==================================================================== #
 
-# This must come first
-from __future__ import print_function, unicode_literals, division
-
 # Standard library imports
 # ========================
 import psutil
-import os
+# import os
 from pathlib import Path
 import datetime as dt
 # from cftime import num2date, date2num
 import cftime as cf  # num2date, date2num
 import pprint
 
-
 import numpy as np
 # import pandas as pd
 # from fortio import FortranFile
 from scipy.io import FortranFile
-from scipy.interpolate import interp1d
+# from scipy.interpolate import interp1d
 # from netCDF4 import Dataset
 
 pp = pprint.PrettyPrinter(indent=2)
 
 # Application library imports
 # ========================
-import gewex_param as gw
-import gewex_netcdf as gnc
+import gewex_param as gwp
+import gewex_variable as gwv
+import gewex_netcdf as gwn
 
 
 #######################################################################
@@ -66,12 +63,12 @@ def get_arguments():
   )
   parser.add_argument(
     "date_start", action="store",
-    type=lambda s: dt.datetime.strptime(s, '%Y%m%d'),
+    type=lambda s: dt.datetime.strptime(s, "%Y%m%d"),
     help="Start date: YYYYMMJJ"
   )
   parser.add_argument(
     "date_end", action="store",
-    type=lambda s: dt.datetime.strptime(s, '%Y%m%d'),
+    type=lambda s: dt.datetime.strptime(s, "%Y%m%d"),
     help="End date: YYYYMMJJ"
   )
 
@@ -116,16 +113,61 @@ def freemem():
   free = (
     psutil.virtual_memory().available * 100 / psutil.virtual_memory().total
   )
-  used = psutil.virtual_memory().used / 1024**2
+  if psutil.virtual_memory().used > 1024**3:
+    used = psutil.virtual_memory().used / 1024**3
+    units = "gb"
+  else:
+    used = psutil.virtual_memory().used / 1024**2
+    units = "mb"
   print(
     F"Memory: Free = {free:.2f} % ; "
-    F"Used = {used:.2f} Mb"
+    F"Used = {used:.2f} {units}"
   )
   # print(
   #   F"Free memory = "
   #   F"{psutil.virtual_memory().available * 100 / psutil.virtual_memory().total:6.2f}"
   #   F"%"
   # )
+
+
+#----------------------------------------------------------------------
+def date_prev(date):
+
+  return date - dt.timedelta(days=1)
+
+
+#----------------------------------------------------------------------
+def date_next(date):
+
+  return date + dt.timedelta(days=1)
+
+
+#----------------------------------------------------------------------
+def check_inputs(V_list, date, dirin):
+
+  f_list = []
+  for V in V_list:
+    f_list.extend([
+      f for f in V.get_ncfiles(
+        dirin,
+        (date_prev(date), date, date_next(date))
+      )
+      if not f.exists()
+    ])
+
+  return f_list
+
+
+#----------------------------------------------------------------------
+def check_outputs(V_list, date, dirout):
+
+  f_list = []
+  for V in V_list:
+    if (V.pathout(dirout, date) and 
+        V.pathout(dirout, date).exists()):
+      f_list.append(V.pathout(dirout, date))
+
+  return f_list
 
 
 #----------------------------------------------------------------------
@@ -201,91 +243,6 @@ def get_weight_indices(lon, date, node):
 
 
 #----------------------------------------------------------------------
-def get_wght_mean(V, i, w, t):
-
-  t_min, t_max = t
-  w_min, w_max = w
-
-  # print(
-  #   t_min, t_max,
-  #   w_min, w_max,
-  #   V.ncdata[t_min, ..., i].shape,
-  #   V.ncdata[t_max, ..., i].shape,
-  # )
-
-  return (
-    w_min * V.ncdata[t_min, ..., i] +
-    w_max * V.ncdata[t_min, ..., i]
-  )
-
-  # print(
-  #   profile.shape
-  # )
-
-  # print(72*".")
-  # for j in range(0, profile.size, 20):
-  #   print(
-  #     j,
-  #     w_min,
-  #     V.ncdata[t_min, ..., j, i],
-  #     w_max,
-  #     V.ncdata[t_max, ..., j, i],
-  #     profile[..., j]
-  #   )
-
-
-#----------------------------------------------------------------------
-def get_interp(V, i, j, ncgrid, tggrid, P0, V0):
-  pass
-
-  X = ncgrid.lev
-  Y = V.ncprofiles[..., j, i]
-
-  cond = tggrid.lev <= P0
-
-  # tgprofile = np.full((tggrid.nlev, ), np.nan)
-
-  fn = interp1d(
-    x=X,
-    y=Y,
-    fill_value="extrapolate",
-  )
-
-  V.tgprofiles[cond, j, i] = fn(tggrid.lev[cond])
-
-  if not V0:
-    z = np.squeeze(np.argwhere(cond)[-1])
-    V0 = V.tgprofiles[z, j, i]
-    # V0 = tgprofile[np.squeeze(np.argwhere(cond)[-1])]
-
-
-  # print(
-  #   F"{tgprofile}\n"
-  #   F"{np.argwhere(~np.isnan(tgprofile))}\n"
-  #   F"{np.argwhere(cond)}\n"
-  #   # F""
-  #   F"V0 = {V0}"
-  # )
-
-  V.tgprofiles[~cond, j, i] = V0
-  # tgprofile[~cond] = V0
-
-  # exit()
-
-  # if variable.name == "temp":
-  #   V0 = Tsurf.outvalues[i_lon, i_lat]
-  # else:
-  #   V0 = tgprofile[np.squeeze(np.argwhere(tgprofile)[-1])]
-  # tgprofile[~cond] = V0
-  # variable.outvalues[i_lon, i_lat, :tg_grid.nlev] = tgprofile
-  # if variable.name == "temp":
-  #   variable.outvalues[i_lon, i_lat, tg_grid.nlev+1] = V0
-
-  return
-  # return tgprofile
-
-
-#----------------------------------------------------------------------
 def iter_dates(start, stop):
 
   delta = 1 + (stop - start).days
@@ -320,8 +277,8 @@ if __name__ == "__main__":
   if args.verbose:
     print(args)
 
-  if args.runtype == 5:
-    args.force = True
+  # if args.runtype == 5:
+  #   args.force = True
 
   # ... Constants ...
   # -----------------
@@ -334,8 +291,8 @@ if __name__ == "__main__":
   # # dirin_2d = dirin.joinpath("AN_SF")
   # dirout   = project_dir.joinpath("output")
 
-  instru = gw.InstruParam(args.runtype)
-  params = gw.GewexParam(project_dir)
+  instru = gwp.InstruParam(args.runtype)
+  params = gwp.GewexParam(project_dir)
 
   if args.verbose:
     print(instru)
@@ -352,90 +309,73 @@ if __name__ == "__main__":
 
   # ... Initialize things ...
   # -------------------------
+  # Grids
+  ncgrid = gwn.NCGrid()
+  tggrid = gwv.TGGrid()
+  # Variables
+  Psurf = gwv.Variable("Psurf", instru)
+  stat = gwv.Variable("stat", instru)
+  if fg_temp:
+    Tsurf = gwv.Variable("Tsurf", instru)
+    T = gwv.Variable("temp", instru)
+  else:
+    Tsurf = T = None
+  if fg_h2o:
+    Q = gwv.Variable("h2o", instru)
+  else:
+    Q = None
 
-  ncgrid = gnc.NCGrid()
-  tggrid = gw.TGGrid()
+  V_list = tuple(
+    V for V in (Psurf, Tsurf, T, Q) if V
+  )
 
+
+  # ... Process date ...
+  # --------------------
   for date_curr in iter_dates(args.date_start, args.date_end):
-    date_prev = date_curr - dt.timedelta(days=1)
-    date_next = date_curr + dt.timedelta(days=1)
 
-    if args.verbose:
-      print(
-        F"{72*'='}\n{date_prev} < {date_curr} > {date_next}\n{72*'-'}"
-      )
+    date_deb = dt.datetime.now()
 
-    fg_process = True
-
-    ncfiles = []
-    outfiles = []
-
-    dates = (date_prev, date_curr, date_next)
-
-    Psurf = gw.Variable("Psurf", instru)
-    ncfiles.append(Psurf.get_ncfiles(params.dirin, dates))
-    outfiles.append(Psurf.pathout(params.dirout, date_curr))
-
-    if fg_temp:
-      Tsurf = gw.Variable("Tsurf", instru)
-      ncfiles.append(Tsurf.get_ncfiles(params.dirin, dates))
-      T = gw.Variable("temp", instru)
-      ncfiles.append(T.get_ncfiles(params.dirin, dates))
-      outfiles.append(T.pathout(params.dirout, date_curr))
-    else:
-      Tsurf = None
-      T = None
-
-      stat = gw.Variable("stat", instru)
-      outfiles.append(stat.pathout(params.dirout, date_curr))
-
-    if fg_h2o:
-      Q = gw.Variable("h2o", instru)
-      ncfiles.append(Q.get_ncfiles(params.dirin, dates))
-      outfiles.append(Q.pathout(params.dirout, date_curr))
-    else:
-      Q = None
-
-    var_list = tuple(
-      V for V in (Psurf, Tsurf, T, Q) if V
+    # if args.verbose:
+    print(
+      F"{72*'='}\n"
+      F"{date_prev(date_curr):%Y-%m-%d}"
+      F" < {date_curr:%Y-%m-%d} > "
+      F"{date_next(date_curr):%Y-%m-%d}"
+      F"\n{72*'-'}"
     )
 
-    # ... Check input files ...
-    # -------------------------
-    ncfiles = np.unique(ncfiles)
-    filesok = [f.exists() for f in ncfiles]
-    missfiles = np.ma.array(
-      ncfiles,
-      # mask=np.logical_not(filesok)
-      mask=filesok
-    )
-    if not all(filesok):
-      print(F"Missing input file(s), skip date")
-      for file in missfiles[~missfiles.mask]:
-        print(F"  - {file}")
-      continue
+    # print(72*"=")
+    # print(72*"=")
+
+    # pp.pprint(locals())
+
+    # print(72*"=")
+    # print(72*"=")
 
     # ... Check output files ...
     # --------------------------
-    filesok = [f.exists() for f in outfiles]
-    donefiles = np.ma.array(
-      outfiles,
-      mask=np.logical_not(filesok)
-      # mask=filesok
-    )
-    if any(filesok):
-      # print(F"Onput file(s) already there, skip date")
+    f_list = check_outputs(V_list, date_curr, params.dirout)
+    if f_list:
       print(F"Onput file(s) already there", end="")
       if args.force:
         print(F", they will be replaced.")
       else:
         print(F", skip date.")
       if args.verbose:
-        for file in donefiles[~donefiles.mask]:
-          print(F"  - {file}")
-
+        for f in f_list:
+          print(F"  - {f}")
       if not args.force:
         continue
+
+    # ... Check input files ...
+    # -------------------------
+    f_list = check_inputs(V_list, date_curr, params.dirin)
+    if f_list:
+      print(F"Missing input file(s), skip date")
+      for f in set(f_list):
+        print(F"  - {f}")
+      continue
 
     # ... Output directory ...
     # ------------------------
@@ -449,12 +389,18 @@ if __name__ == "__main__":
     # ----------------------------------
     if not ncgrid.loaded:
       if T:
-        variable = T
+        V = T
       elif Q:
-        variable = Q
+        V = Q
       else:
-        variable = Psurf
-      ncgrid.load(variable.get_ncfiles(params.dirin, args.date_start))
+        V = Psurf
+      if args.verbose:
+        print(
+          F"Load grid from "
+          F"{V.get_ncfiles(params.dirin, args.date_start)}\n"
+          F"{72*'='}"
+        )
+      ncgrid.load(V.get_ncfiles(params.dirin, args.date_start))
 
     if not tggrid.loaded:
       tggrid.load(ncgrid)
@@ -466,39 +412,38 @@ if __name__ == "__main__":
 
     freemem()
 
-    code_start = dt.datetime.now()
-    for V in var_list:
-      print(80*"~")
-      print(F"Load nc data for {V.name}")
-      V.ncdata = gnc.load_netcdf(
+    if args.verbose:
+      code_start = dt.datetime.now()
+    for V in V_list:
+      if args.verbose:
+        print(F"{72*'~'}\nLoad nc data for {V.name}")
+      V.ncdata = gwn.load_netcdf(
         V, date_min, date_max, params
-        # V, date_bounds.min(), date_bounds.max(), params
       )
       freemem()
-    code_stop = dt.datetime.now()
-    print(code_stop - code_start)
+    if args.verbose:
+      code_stop = dt.datetime.now()
+      print(code_stop - code_start)
 
-
-    print(80*"~")
-    print(F"Init datas")
-    for V in var_list:
-      print(V.ncdata.shape)
+    # ... Init arrays for variables data ...
+    # --------------------------------------
+    if args.verbose:
+      print(F"{72*'~'}\nInit datas")
+    for V in V_list:
       V.init_datas(ncgrid, tggrid)
     freemem()
 
-
+    # ... Loop over netcdf longitudes ...
+    # -----------------------------------
     for i in range(ncgrid.nlon):
-      fg_print = not (i % 60)
+      fg_print = not (i % 60) and args.verbose
 
       if fg_print:
-        print(
-          F"lon = {ncgrid.lon[i]}"
-          # F"lat = {nc_grid.lat[i_lat]}"
-        )
+        print(F"lon = {ncgrid.lon[i]}")
 
       if fg_print:
         print("Weighted nc mean")
-      for V in var_list:
+      for V in V_list:
         V.get_wght_mean(i, weight[i], time_indices[i])
 
         if V.mode == "2d":
@@ -514,7 +459,7 @@ if __name__ == "__main__":
           if fg_print:
             print("for lat, interp")
           for j in range(ncgrid.nlat):
-            fg_print = not (i % 60) and not (j % 60)
+            fg_print = not (i % 60) and not (j % 60) and args.verbose
             if fg_print:
               print(
                 F"lon = {ncgrid.lon[i]} ; "
@@ -526,11 +471,6 @@ if __name__ == "__main__":
             else:
               V0 = None
 
-            # V.tgprofiles[..., j, i] = get_interp(
-            #   V, i, j,
-            #   ncgrid, tggrid,
-            #   Psurf.tgprofiles[j, i], V0
-            # )
             V.get_interp(
               i, j, ncgrid, tggrid,
               Psurf.tgprofiles[j, i], V0
@@ -538,26 +478,33 @@ if __name__ == "__main__":
             # if fg_print:
             #   print(V.name, V.tgprofiles[..., j, i])
 
-    print("Write files")
-    for V in var_list:
+    if args.verbose:
+      print("Write files")
+    for V in V_list:
       fileout = V.pathout(params.dirout, date_curr)
       if fileout:
-        print(V.name, fileout)
-        values = gw.grid_nc2tg(V.tgprofiles, ncgrid, tggrid)
-        # print(values.shape, values.ndim)
-        # values = np.rollaxis(values, -1, -2)
-        # print(values.shape)
-        with FortranFile(
-          fileout,
-          # V.pathout(params.dirout, date_curr),
-          mode="w", header_dtype=">u4"
-        ) as f:
+        if args.verbose:
+          print(V.name, fileout)
+        values = gwv.grid_nc2tg(V.tgprofiles, ncgrid, tggrid)
+        with FortranFile(fileout, mode="w", header_dtype=">u4") as f:
           f.write_record(
             np.rollaxis(values, -1, -2).astype(dtype=">f4")
           )
 
+    # ... Some cleaning to free memory ...
+    # ------------------------------------
+    if args.verbose:
+      print(F"{72*'~'}\nClear datas")
+    for V in V_list:
+      V.clear_datas()
+    freemem()
 
-  print("\n"+72*"=")
-  print(f"Run ended in {dt.datetime.now() - run_deb}")
+    print(
+      F"{72*'-'}\n"
+      F"{date_curr:%Y-%m-%d} processed in "
+      F"{dt.datetime.now() - date_deb}"
+    )
+
+  print(F"\n{72*'='}\nRun ended in {dt.datetime.now() - run_deb}")
 
   exit()

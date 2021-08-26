@@ -120,7 +120,7 @@ class NCGrid(object):
   # -------------------------------------------------------------------
   def load(self, filenc):
 
-    print(F"Load grid from {filenc}\n"+72*"=")
+    # print(F"Load grid from {filenc}\n"+72*"=")
     self.loaded = True
 
     with Dataset(filenc, "r", format="NETCDF4") as f_nc:
@@ -247,12 +247,12 @@ def load_netcdf(V, date_min, date_max, params):
   else:
     (t0_f, t1_i) = (ntim, 0)
 
-  print(ncfiles[0], t0_i, t0_f, t0_f - t0_i)
+  # print(ncfiles[0], t0_i, t0_f, t0_f - t0_i)
   with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
     var0 = f.variables[V.ncvar][t0_i:t0_f, ...].copy()
   var0 = var0 * V.coeff
   # print(var0.shape)
-  print(ncfiles[1], t1_i, t1_f, t1_f - t1_i)
+  # print(ncfiles[1], t1_i, t1_f, t1_f - t1_i)
   with Dataset(ncfiles[1], "r", format="NETCDF4") as f:
     var1 = f.variables[V.ncvar][t1_i:t1_f, ...].copy()
   var1 = var1 * V.coeff
