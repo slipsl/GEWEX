@@ -74,7 +74,7 @@ class Variable(object):
     if name == "stat":
       self.longname = ""
       self.ncvar = None
-      self.mode = None
+      self.mode = "2d"
       self.coeff = None
       self.str = "L2_status"
 
@@ -111,8 +111,11 @@ class Variable(object):
       ncshape = (ncgrid.nlev, ncgrid.nlat, ncgrid.nlon)
       tgshape = (tg_nlev, ncgrid.nlat, ncgrid.nlon)
 
+    print(ncshape, tgshape)
+
     self.ncprofiles = np.full(ncshape, np.nan)
     self.tgprofiles = np.full(tgshape, np.nan)
+    self.ncdata = None
 
   # -------------------------------------------------------------------
   def clear_datas(self):

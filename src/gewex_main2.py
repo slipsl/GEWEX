@@ -113,11 +113,12 @@ def freemem():
   free = (
     psutil.virtual_memory().available * 100 / psutil.virtual_memory().total
   )
-  if psutil.virtual_memory().used > 1024**3:
-    used = psutil.virtual_memory().used / 1024**3
+  used = psutil.virtual_memory().used
+  if used > 1024**3:
+    used = used / 1024**3
     units = "gb"
   else:
-    used = psutil.virtual_memory().used / 1024**2
+    used = used / 1024**2
     units = "mb"
   print(
     F"Memory: Free = {free:.2f} % ; "
@@ -410,8 +411,17 @@ if __name__ == "__main__":
     weight, time_indices, (date_min, date_max) = \
       get_weight_indices(ncgrid.lon, date_curr, instru.tnode)
 
+    # ... Init arrays for variables data ...
+    # --------------------------------------
+    if args.verbose:
+      print(F"{72*'~'}\nInit datas")
+    for V in V_list + (stat, ):
+      V.init_datas(ncgrid, tggrid)
     freemem()
 
+    # ... Load netcdf data ...
+    # ------------------------
+    freemem()
     if args.verbose:
       code_start = dt.datetime.now()
     for V in V_list:
@@ -424,14 +434,6 @@ if __name__ == "__main__":
     if args.verbose:
       code_stop = dt.datetime.now()
       print(code_stop - code_start)
-
-    # ... Init arrays for variables data ...
-    # --------------------------------------
-    if args.verbose:
-      print(F"{72*'~'}\nInit datas")
-    for V in V_list:
-      V.init_datas(ncgrid, tggrid)
-    freemem()
 
     # ... Loop over netcdf longitudes ...
     # -----------------------------------
@@ -478,9 +480,11 @@ if __name__ == "__main__":
             # if fg_print:
             #   print(V.name, V.tgprofiles[..., j, i])
 
+    stat.tgprofiles[...] = 10000
+
     if args.verbose:
       print("Write files")
-    for V in V_list:
+    for V in V_list + (stat, ):
       fileout = V.pathout(params.dirout, date_curr)
       if fileout:
         if args.verbose:
@@ -495,7 +499,7 @@ if __name__ == "__main__":
     # ------------------------------------
     if args.verbose:
       print(F"{72*'~'}\nClear datas")
-    for V in V_list:
+    for V in V_list + (stat, ):
       V.clear_datas()
     freemem()
 
