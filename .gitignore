@@ -3,6 +3,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+*.pdf
+*.dat
+src/idl
+img/
+input/
+output/
+run/
+
 # C extensions
 *.so
 
