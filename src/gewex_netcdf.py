@@ -222,7 +222,7 @@ def read_netcdf(variable, nc_grid, i_lon, i_time):
 
   # exit()
 
-  return (variable.coeff * var).T.copy()
+  return (variable.coeff * var).copy()
   # return var
 
 
@@ -230,6 +230,7 @@ def read_netcdf(variable, nc_grid, i_lon, i_time):
 def load_netcdf(V, date_min, date_max, params):
 
   import numpy as np
+  from pathlib import Path
 
   ncfiles = V.get_ncfiles(params.dirin, (date_min, date_max))
 
@@ -237,6 +238,12 @@ def load_netcdf(V, date_min, date_max, params):
     d.hour + 24 * (d.day - 1)
     for d in (date_min, date_max)
   ]
+
+  if V.name == "time":
+    ncfiles = tuple(
+      Path(str(f).replace("time.", "sp."))
+      for f in ncfiles
+    )
 
   with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
     ntim = f.dimensions["time"].size

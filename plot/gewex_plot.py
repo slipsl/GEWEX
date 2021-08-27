@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This must come first
-from __future__ import print_function, unicode_literals, division
-
 # Standard library imports
 # ========================
 import sys
@@ -26,8 +23,9 @@ pp = pprint.PrettyPrinter(indent=2)
 # Application library imports
 # ========================
 sys.path.append(str(Path(__file__).resolve().parents[1].joinpath("src")))
-import gewex_param as gw
-import gewex_netcdf as gnc
+import gewex_param as gwp
+import gewex_variable as gwv
+import gewex_netcdf as gwn
 
 
 #######################################################################
@@ -51,9 +49,9 @@ def get_arguments():
   parser.add_argument(
     "varname", action="store",
     # type=int,
-    choices=["Psurf", "Tsurf", "temp", "h2o"],
+    choices=["Psurf", "temp", "h2o"],
     help=(
-      "Variable to plot: \"Psurf\", \"Tsurf\", \"temp\", \"h2o\""
+      "Variable to plot: \"Psurf\", \"temp\", \"h2o\""
     )
   )
   parser.add_argument(
@@ -96,8 +94,7 @@ def cm2inch(x):
 def read_f77(variable, filein, grid):
 
   with FortranFile(filein, "r", header_dtype=">u4") as f:
-    rec = f.read_record(dtype=">f4")
-
+    rec = f.read_record(dtype=">f4").astype(dtype=np.float32)
 
   if variable.mode == "2d":
     shape = (grid.nlon, grid.nlat)
@@ -111,8 +108,9 @@ def read_f77(variable, filein, grid):
   # var_out = rec.reshape(grid.nlon, grid.nlat).T
   # var_out = np.rollaxis(rec.reshape(shape), -1, -2)
   var_out = rec.reshape(shape)
-  if variable.mode == "3d":
-    var_out = np.rollaxis(var_out, 0, 3)
+  # if variable.mode == "3d":
+  #   var_out = np.rollaxis(var_out, 0, 3)
+  var_out = np.rollaxis(var_out, -1, -2)
 
   return var_out
 
@@ -135,16 +133,52 @@ def read_f77(variable, filein, grid):
 
 
 #----------------------------------------------------------------------
+def init_figure(mode):
+
+  A4R = (cm2inch(21.0), cm2inch(29.7))
+  A4L = A4R[::-1]
+
+  # print(A4R, A4L)
+
+  if mode == "2d":
+    figsize = A4R
+    nrows = 3
+    ncols = 1
+    sharex = "none"
+    sharey = "none"
+  else:
+    # figsize = A4R
+    figsize = A4L
+    nrows = 3
+    # ncols = 1
+    ncols = 3
+    sharex = "all"
+    sharey = "all"
+
+  fig, axes = plt.subplots(
+    figsize=figsize,
+    nrows=nrows, ncols=ncols,
+    sharex=sharex,
+    sharey=sharey,
+    # dpi=300,
+  )
+
+  return fig, axes
+
+
+#----------------------------------------------------------------------
 def prep_data(var_in, grid, fg_scatter=False):
 
+  step = 4
+
   if fg_scatter:
-    lon = grid.lon[::4]
-    lat = grid.lat[::4]
+    lon = grid.lon[::step]
+    lat = grid.lat[::step]
     X = np.tile(lon, len(lat))
     Y = np.repeat(lat, len(lon))
     # X = np.tile(grid.lon[::4], int(grid.lat.size/4))
     # Y = np.repeat(grid.lat[::4], int(grid.lon.size/4))
-    Z = var_in[::4, ::4].T.flatten()
+    Z = var_in[::step, ::step].flatten()
     # X = np.empty(var_in.size)
     # Y = np.empty(var_in.size)
     # Z = np.empty(var_in.size)
@@ -158,7 +192,7 @@ def prep_data(var_in, grid, fg_scatter=False):
   else:
     X = grid.lon  #[::4]
     Y = grid.lat  #[::4]
-    Z = var_in.T
+    Z = var_in
 
   # print(
   #   X.shape,
@@ -172,15 +206,19 @@ def prep_data(var_in, grid, fg_scatter=False):
 #----------------------------------------------------------------------
 def plot_data(fg_scatter, ax, X, Y, Z, cmap, norm, title, nb=30):
 
-  if fg_scatter:
-    im = scatter_plot(ax, X, Y, Z, cmap, norm, title)
+  if Z is not None:
+    if fg_scatter:
+      im = scatter_plot(ax, X, Y, Z, cmap, norm, title)
+    else:
+      im = contour_plot(ax, X, Y, Z, cmap, title, nb=nb)
+    # im = ax.scatter(x=X, y=Y, c=Z, cmap=cmap, norm=norm)
+    # cb = fig.colorbar(im, ax=ax, format="%.2e")
+    write_comment(ax, Z)
+    cb = fig.colorbar(im, ax=ax)
   else:
-    im = contour_plot(ax, X, Y, Z, cmap, title, nb=nb)
-  # im = ax.scatter(x=X, y=Y, c=Z, cmap=cmap, norm=norm)
-  cb = fig.colorbar(im, ax=ax)
-  ax.set_title(title, loc="left")
+    cb = None
+  ax.set_title(title, loc="left", fontsize=9)
   config_axcb(ax, cb, X, Y)
-  write_comment(ax, Z)
 
 
 #----------------------------------------------------------------------
@@ -220,7 +258,7 @@ def plot(ax, im, title):
 def write_comment(ax, Z):
 
   ax.text(
-    0.98, 0.02,
+    0.98, 0.03,
     F"m = {Z.mean():.2e} / $\sigma$ = {Z.std():.2e}",
     fontsize=8,
     ha="right",
@@ -241,21 +279,30 @@ def write_comment(ax, Z):
 #----------------------------------------------------------------------
 def config_axcb(ax, cb, X, Y):
 
-  # print(X.min(), X.max())
-  # print(Y.min(), Y.max())
-  # grid = tg_grid
-  (ymin, xmin) = (floor(l) for l in (Y.min(), X.min()))
-  (ymax, xmax) = (ceil(l)  for l in (Y.max(), X.max()))
-
-  cb.ax.tick_params(labelsize=8)
   ax.tick_params(axis='both', which='major', labelsize=8)
   ax.tick_params(axis='x', labelrotation=45)
 
-  ax.set_xticks(range(xmin, xmax + 1, 30))
-  ax.set_yticks(range(ymin, ymax + 1, 30))
 
-  ax.set_xlim([float(xmin), float(xmin) + 360.])
-  ax.set_ylim([float(ymin), float(ymax)])
+  if X is not None:
+    cb.ax.tick_params(labelsize=8)
+    cb.formatter.set_powerlimits((-2, 2))
+    # cb.formatter.set_scientific(True)
+    cb.update_ticks()
+
+    # print(X.min(), X.max())
+    # print(Y.min(), Y.max())
+    # grid = tg_grid
+    (ymin, xmin) = (floor(l) for l in (Y.min(), X.min()))
+    (ymax, xmax) = (ceil(l)  for l in (Y.max(), X.max()))
+
+    # cb.ax.set_yticklabels(["{:4.2f}".format(i) for i in v1])
+    # cbar = pyplot.colorbar(pp, orientation='vertical', ticks=np.arange(cbar_min, cbar_max+cbar_step, cbar_step), format=cbar_num_format)
+
+    ax.set_xticks(range(xmin, xmax + 1, 30))
+    ax.set_yticks(range(ymin, ymax + 1, 30))
+
+    ax.set_xlim([float(xmin), float(xmin) + 360.])
+    ax.set_ylim([float(ymin), float(ymax)])
 
 
 #----------------------------------------------------------------------
@@ -310,14 +357,14 @@ if __name__ == "__main__":
   else:
     cmap = cmap_diff
 
-  instru = gw.InstruParam(args.runtype)
-  params = gw.GewexParam(project_dir)
+  instru = gwp.InstruParam(args.runtype)
+  params = gwp.GewexParam(project_dir)
 
   print(instru)
   print(params)
 
 
-  variable = gw.Variable(args.varname, instru)
+  variable = gwv.Variable(args.varname, instru)
   print(variable)
 
   if variable.mode == "2d":
@@ -341,9 +388,13 @@ if __name__ == "__main__":
        900: {"nc": 32, "tg": 20},
        950: {"nc": 34, "tg": 21},
       1000: {"nc": 36, "tg": 22},
-      2000: {"nc": 36, "tg": 23},
-      3000: {"nc": 36, "tg": 24},
+      # 2000: {"nc": 36, "tg": 23},
+      # 3000: {"nc": 36, "tg": 24},
     }
+
+    if variable.name == "temp":
+      pl[2000] = {"nc": 36, "tg": 23}
+      pl[3000] = {"nc": 36, "tg": 24}
 
   # print(variable.get_ncfiles(params.dirin, args.date))
   # print(variable.pathout(params.dirout, args.date))
@@ -379,42 +430,43 @@ if __name__ == "__main__":
 
   # ... Load NetCDF & target grids ...
   # ----------------------------------
-  nc_grid = gnc.NCGrid()
+  nc_grid = gwn.NCGrid()
   nc_grid.load(variable.ncfiles)
-  tg_grid = gw.TGGrid()
+  tg_grid = gwv.TGGrid()
   tg_grid.load(nc_grid)
 
-  A4R = (cm2inch(21.0), cm2inch(29.7))
-  A4L = A4R[::-1]
+  # pp.pprint(nc_grid.lev)
 
-  print(A4R, A4L)
+  # A4R = (cm2inch(21.0), cm2inch(29.7))
+  # A4L = A4R[::-1]
 
-  if variable.mode == "2d":
-    figsize = A4R
-    nrows = 3
-    ncols = 1
-  else:
-    # figsize = A4R
-    figsize = A4L
-    nrows = 3
-    # ncols = 1
-    ncols = 3
+  # print(A4R, A4L)
 
+  # if variable.mode == "2d":
+  #   figsize = A4R
+  #   nrows = 3
+  #   ncols = 1
+  # else:
+  #   # figsize = A4R
+  #   figsize = A4L
+  #   nrows = 3
+  #   # ncols = 1
+  #   ncols = 3
 
-  fig, axes = plt.subplots(
-    figsize=figsize,
-    nrows=nrows, ncols=ncols,
-    # sharex="all",
-    # sharey="all",
-    # dpi=300,
-  )
+  # fig, axes = plt.subplots(
+  #   figsize=figsize,
+  #   nrows=nrows, ncols=ncols,
+  #   # sharex="all",
+  #   # sharey="all",
+  #   # dpi=300,
+  # )
+
   # cbars = {}
   # imags = {}
 
   # print(F"axes: {axes}")
 
   pdf = PdfPages(dir_img.joinpath(F"{img_name}.pdf"))
-
 
 
   print("Read input files")
@@ -425,10 +477,11 @@ if __name__ == "__main__":
   nstep = 24  # number of time steps per day
   i_time = (args.date.day - 1) * nstep
   variable.ncvalues = (  # NetCDF grid
-      gnc.read_netcdf(variable, nc_grid, slice(nc_grid.nlon), i_time)
+      gwn.read_netcdf(variable, nc_grid, slice(nc_grid.nlon), i_time)
   )
+  print(variable.ncvalues.shape)
   variable.ncvalues = (  # F77 grid
-      gw.grid_nc2tg(variable.ncvalues, nc_grid, tg_grid)
+      gwv.grid_nc2tg(variable.ncvalues, nc_grid, tg_grid)
   )
   print(variable.ncvalues.shape)
 
@@ -456,64 +509,129 @@ if __name__ == "__main__":
   # data = []
   # titles = []
 
-  for key, lev in pl.items():
+  for ilev, (key, lev) in enumerate(pl.items()):
+
+    if ilev % 3 == 0:
+      print(F"{72*'~'}\nInit figure")
+      fig, axes = init_figure(variable.mode)
+      img_nb = 1 + (ilev // 3)
+      fg_saved = False
+      vmin = -np.inf
+      vmax = +np.inf
+
     if lev["tg"] < tg_grid.nlev:
       print(
-        key,
-        nc_grid.lev[lev["nc"]],
-        tg_grid.lev[lev["tg"]],
+        F"{ilev}: {key} - "
+        # F"{nc_grid.lev[lev['nc']]} hPa ; "
+        # F"{tg_grid.lev[lev['tg']]} hPa"
       )
     else:
       print(
-        key,
-        lev["nc"],
-        lev["tg"],
+        F"{ilev}: {key} - "
+        F"{lev['nc']} ; "
+        F"{lev['tg']}"
       )
 
+    print("Computing")
     if variable.mode == "2d":
       ncvalues = variable.ncvalues
       pyvalues = variable.pyvalues
       if fg_idl:
         idlvalues = variable.idlvalues
+
+      level_nc = level_tg = "Surf"
     else:
-      ncvalues = variable.ncvalues[..., lev["nc"]]
-      pyvalues = variable.pyvalues[..., lev["tg"]]
+      ncvalues = variable.ncvalues[lev["nc"], ...]
+      pyvalues = variable.pyvalues[lev["tg"], ...]
       if fg_idl:
-        idlvalues = variable.idlvalues[..., lev["tg"]]
+        idlvalues = variable.idlvalues[lev["tg"], ...]
+
+      level_nc = F"{nc_grid.lev[lev['nc']]} hPa"
+      if lev["tg"] < tg_grid.nlev:
+        level_tg = F"{tg_grid.lev[lev['tg']]} hPa"
+      else:
+        level_tg = F"n+{1 + (tg_grid.nlev - lev['tg'])} hPa"
 
     if args.mode == "plot":
       norm = None
-      titles = ["netcdf", "python", ]
+      titles = [
+        F"netcdf @ {level_nc}",
+        F"python @ {level_tg}",
+      ]
       data = [ncvalues, pyvalues, ]
       if fg_idl:
-        titles.append("idl", )
+        titles.append(F"idl @ {level_tg}", )
         data.append(idlvalues, )
+      else:
+        titles.append(F"no idl", )
+        data.append(None, )
     else:
       norm = True
-      titles = ["nc - py", ]
+      titles = [
+        F"(nc - py) @ ({level_nc} - {level_tg})",
+      ]
       data = [ncvalues - pyvalues, ]
       if fg_idl:
-        titles.extend(("nc - idl", "idl - py", ))
+        titles.extend((
+          F"(nc - idl) @ ({level_nc} - {level_tg})",
+          F"(idl - py) @ {level_tg}",
+        ))
         data.extend((
           ncvalues - idlvalues,
           idlvalues - pyvalues,
         ))
 
+    # if variable.mode == "3d":
+    #   titles = [
+    #       F"{t}     @ {nc_grid.lev[lev['nc']]} hPa"
+    #       for t in titles
+    #     ]
 
 
+    for idx, (title, values) in enumerate(zip(titles, data)):
+      iax = idx + 3 * (ilev % 3)
+
+      print("Compute")
+      if values is not None:
+        print(title, values.shape)
+        print(F" - [{idx + 3 * (ilev % 3)}] {title}")
+        (X, Y, Z) = prep_data(values, tg_grid, args.scatter)
+        print(F"mean = {Z.mean():.2e} ; std = {Z.std():.2e}")
+        if norm:
+          norm = clr.TwoSlopeNorm(vcenter=0., vmin=Z.min(), vmax=Z.max())
+      else:
+        X = Y = Z = None
+      print(F"norm = {norm}")
+
+      print("Plot stuff")
+      plot_data(
+        args.scatter, axes.T.flatten()[iax],
+        X, Y, Z,
+        cmap, norm,
+        title
+      )
 
 
+    if (ilev % 3 == 2) or (ilev == len(pl)-1):
+      print("Plot config")
+      # ====================================================================
+      now = dt.datetime.now()
+      config_plot(fig, fig_title, now)
 
+      print(
+        F"Save fig {now:%d/%m/%Y %H:%M:%S} / "
+        F"{img_name}_lev{img_nb}\n{72*'~'}"
+      )
+      # ========================
+      if variable.mode == "2d":
+        fileout = dir_img.joinpath(F"{img_name}.{img_type}"),
+      else:
+        fileout = dir_img.joinpath(F"{img_name}_lev{img_nb}.{img_type}"),
 
-
-
-
-
-
-
-
-
-
+      fig.savefig(
+        dir_img.joinpath(F"{img_name}_lev{img_nb}.{img_type}"),
+      )
+      fg_saved = True
 
 
 

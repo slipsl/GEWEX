@@ -244,6 +244,18 @@ def get_weight_indices(lon, date, node):
       for (d1, d2) in date_bounds
     ])
 
+    # for l, d0, (d1, d2), (w1, w2), (t1, t2) in zip(
+    #   lon, date_utc, date_bounds, weight, time_indices
+    # ):
+    #   print(
+    #     F"{l:.2f} °E / {node} h = "
+    #     F"{w1:.2f} x {d1}"
+    #     F" < {d0} > "
+    #     F"{w2:.2f} x {d2}"
+    #     F"   ({t1} {t2})"
+    #   )
+    # exit()
+
     return weight, time_indices, (date_bounds.min(), date_bounds.max())
 
 
@@ -320,6 +332,7 @@ if __name__ == "__main__":
   # Variables
   Psurf = gwv.Variable("Psurf", instru)
   stat = gwv.Variable("stat", instru)
+  time = gwv.Variable("time", instru)
   if fg_temp:
     Tsurf = gwv.Variable("Tsurf", instru)
     T = gwv.Variable("temp", instru)
@@ -428,12 +441,14 @@ if __name__ == "__main__":
     freemem()
     if args.verbose:
       code_start = dt.datetime.now()
-    for V in V_list:
+    for V in (time, ) + V_list:
       if args.verbose:
         print(F"{72*'~'}\nLoad nc data for {V.name}")
       V.ncdata = gwn.load_netcdf(
         V, date_min, date_max, params
       )
+      if args.verbose:
+        print(V.ncdata.shape)
       freemem()
     if args.verbose:
       code_stop = dt.datetime.now()
@@ -446,6 +461,12 @@ if __name__ == "__main__":
 
       if fg_print:
         print(F"lon = {ncgrid.lon[i]}")
+        print(
+          num2date(time.ncdata[time_indices[i][0]]),
+          weight[i][0],
+          num2date(time.ncdata[time_indices[i][1]]),
+          weight[i][1],
+        )
 
       if fg_print:
         print("Weighted nc mean")

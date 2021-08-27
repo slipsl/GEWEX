@@ -72,11 +72,18 @@ class Variable(object):
       self.str = "L2_H2O_daily_average"
       self.units = F"{self.coeff ** -1:1.0e} kg kg**-1"
     if name == "stat":
-      self.longname = ""
+      self.longname = "Temp status"
       self.ncvar = None
       self.mode = "2d"
       self.coeff = None
       self.str = "L2_status"
+
+    if name == "time":
+      self.longname = "Time"
+      self.ncvar = "time"
+      self.mode = "2d"
+      self.coeff = 1.
+      self.str = None
 
     self.fileversion = "05"
     self.instru = instru.name
