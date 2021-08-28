@@ -152,9 +152,9 @@ if __name__ == "__main__":
 
   run_opt1 = []
   if args.verbose:
-    run_opt1.append("v")
+    run_opt1.append("-v")
   if args.force:
-    run_opt1.append("f")
+    run_opt1.append("-f")
 
   run_opt2 = []
   if args.notemp:
@@ -187,7 +187,8 @@ if __name__ == "__main__":
     F"cd $PBS_O_WORKDIR",
     F"",
     (
-      F"python {pgm} -{''.join(run_opt1)} "
+      F"python {pgm} "
+      F"{' '.join(run_opt1)} "
       F"{' '.join(run_opt2)} "
       F"{args.runtype} "
       F"{args.date_start:%Y%m%d} {args.date_end:%Y%m%d}"
