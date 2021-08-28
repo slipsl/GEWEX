@@ -291,7 +291,7 @@ def config_axcb(ax, cb, X, Y):
 
     # print(X.min(), X.max())
     # print(Y.min(), Y.max())
-    # grid = tg_grid
+    # grid = tggrid
     (ymin, xmin) = (floor(l) for l in (Y.min(), X.min()))
     (ymax, xmax) = (ceil(l)  for l in (Y.max(), X.max()))
 
@@ -430,12 +430,12 @@ if __name__ == "__main__":
 
   # ... Load NetCDF & target grids ...
   # ----------------------------------
-  nc_grid = gwn.NCGrid()
-  nc_grid.load(variable.ncfiles)
-  tg_grid = gwv.TGGrid()
-  tg_grid.load(nc_grid)
+  ncgrid = gwn.NCGrid()
+  ncgrid.load(variable.ncfiles)
+  tggrid = gwv.TGGrid()
+  tggrid.load()
 
-  # pp.pprint(nc_grid.lev)
+  # pp.pprint(ncgrid.lev)
 
   # A4R = (cm2inch(21.0), cm2inch(29.7))
   # A4L = A4R[::-1]
@@ -477,27 +477,27 @@ if __name__ == "__main__":
   nstep = 24  # number of time steps per day
   i_time = (args.date.day - 1) * nstep
   variable.ncvalues = (  # NetCDF grid
-      gwn.read_netcdf(variable, nc_grid, slice(nc_grid.nlon), i_time)
+      gwn.read_netcdf(variable, ncgrid, slice(ncgrid.nlon), i_time)
   )
   print(variable.ncvalues.shape)
   variable.ncvalues = (  # F77 grid
-      gwv.grid_nc2tg(variable.ncvalues, nc_grid, tg_grid)
+      gwv.grid_nc2tg(variable.ncvalues, ncgrid, tggrid)
   )
   print(variable.ncvalues.shape)
 
   print(" - python")
   # ------------------------
   variable.pyvalues = \
-      read_f77(variable, variable.pyfile, tg_grid)
-      # read_f77(variable.pyfile, tg_grid)
+      read_f77(variable, variable.pyfile, tggrid)
+      # read_f77(variable.pyfile, tggrid)
   print(variable.pyvalues.shape)
 
   if fg_idl:
     print(" - idl")
     # ------------------------
     variable.idlvalues = \
-        read_f77(variable, variable.idlfile, tg_grid)
-        # read_f77(variable.idlfile, tg_grid)
+        read_f77(variable, variable.idlfile, tggrid)
+        # read_f77(variable.idlfile, tggrid)
     print(variable.idlvalues.shape)
   else:
     variable.idlvalues = []
@@ -519,11 +519,11 @@ if __name__ == "__main__":
       vmin = -np.inf
       vmax = +np.inf
 
-    if lev["tg"] < tg_grid.nlev:
+    if lev["tg"] < tggrid.nlev:
       print(
         F"{ilev}: {key} - "
-        # F"{nc_grid.lev[lev['nc']]} hPa ; "
-        # F"{tg_grid.lev[lev['tg']]} hPa"
+        # F"{ncgrid.lev[lev['nc']]} hPa ; "
+        # F"{tggrid.lev[lev['tg']]} hPa"
       )
     else:
       print(
@@ -546,11 +546,11 @@ if __name__ == "__main__":
       if fg_idl:
         idlvalues = variable.idlvalues[lev["tg"], ...]
 
-      level_nc = F"{nc_grid.lev[lev['nc']]} hPa"
-      if lev["tg"] < tg_grid.nlev:
-        level_tg = F"{tg_grid.lev[lev['tg']]} hPa"
+      level_nc = F"{ncgrid.lev[lev['nc']]} hPa"
+      if lev["tg"] < tggrid.nlev:
+        level_tg = F"{tggrid.lev[lev['tg']]} hPa"
       else:
-        level_tg = F"n+{1 + (tg_grid.nlev - lev['tg'])} hPa"
+        level_tg = F"n+{1 + (tggrid.nlev - lev['tg'])} hPa"
 
     if args.mode == "plot":
       norm = None
@@ -583,7 +583,7 @@ if __name__ == "__main__":
 
     # if variable.mode == "3d":
     #   titles = [
-    #       F"{t}     @ {nc_grid.lev[lev['nc']]} hPa"
+    #       F"{t}     @ {ncgrid.lev[lev['nc']]} hPa"
     #       for t in titles
     #     ]
 
@@ -595,7 +595,7 @@ if __name__ == "__main__":
       if values is not None:
         print(title, values.shape)
         print(F" - [{idx + 3 * (ilev % 3)}] {title}")
-        (X, Y, Z) = prep_data(values, tg_grid, args.scatter)
+        (X, Y, Z) = prep_data(values, tggrid, args.scatter)
         print(F"mean = {Z.mean():.2e} ; std = {Z.std():.2e}")
         if norm:
           norm = clr.TwoSlopeNorm(vcenter=0., vmin=Z.min(), vmax=Z.max())
@@ -640,7 +640,7 @@ if __name__ == "__main__":
   for idx, (title, values) in enumerate(zip(titles, data)):
     # print(title, values.shape)
     print(F" - {title}")
-    (X, Y, Z) = prep_data(values, tg_grid, args.scatter)
+    (X, Y, Z) = prep_data(values, tggrid, args.scatter)
     print(F"mean = {Z.mean():.2e} ; std = {Z.std():.2e}")
     if norm:
       norm = clr.TwoSlopeNorm(vcenter=0., vmin=Z.min(), vmax=Z.max())
@@ -667,20 +667,20 @@ if __name__ == "__main__":
 
   #   print(" - netcdf")
   #   # ------------------------
-  #   (X0, Y0, Z0) = prep_data(ncvalues + offset, tg_grid, args.scatter)
+  #   (X0, Y0, Z0) = prep_data(ncvalues + offset, tggrid, args.scatter)
   #   print(Z0.mean(), Z0.std())
   #   norm0 = None
   #   title0 = "netcdf"
   #   print(" - python")
   #   # ------------------------
-  #   (X1, Y1, Z1) = prep_data(pyvalues + offset, tg_grid, args.scatter)
+  #   (X1, Y1, Z1) = prep_data(pyvalues + offset, tggrid, args.scatter)
   #   print(Z1.mean(), Z1.std())
   #   norm1 = None
   #   title1 = "python"
   #   if fg_idl:
   #     print(" - idl")
   #     # ------------------------
-  #     (X2, Y2, Z2) = prep_data(idlvalues + offset, tg_grid, args.scatter)
+  #     (X2, Y2, Z2) = prep_data(idlvalues + offset, tggrid, args.scatter)
   #     print(Z2.mean(), Z2.std())
   #     norm2 = None
   #     title2 = "idl"
@@ -688,7 +688,7 @@ if __name__ == "__main__":
   #   print(" - (netcdf - python)")
   #   # ------------------------
   #   (X0, Y0, Z0) = prep_data(
-  #     variable.ncvalues - variable.pyvalues, tg_grid, args.scatter
+  #     variable.ncvalues - variable.pyvalues, tggrid, args.scatter
   #   )
   #   print(Z0.mean(), Z0.std())
   #   norm0 = clr.TwoSlopeNorm(vcenter=0., vmin=Z0.min(), vmax=Z0.max())
@@ -697,7 +697,7 @@ if __name__ == "__main__":
   #     print(" - (netcdf - idl)")
   #     # ------------------------
   #     (X1, Y1, Z1) = prep_data(
-  #       variable.ncvalues - variable.idlvalues, tg_grid, args.scatter
+  #       variable.ncvalues - variable.idlvalues, tggrid, args.scatter
   #     )
   #     print(Z1.mean(), Z1.std())
   #     norm1 = clr.TwoSlopeNorm(vcenter=0., vmin=Z1.min(), vmax=Z1.max())
@@ -705,7 +705,7 @@ if __name__ == "__main__":
   #     print(" - (idl - python)")
   #     # ------------------------
   #     (X2, Y2, Z2) = prep_data(
-  #       variable.idlvalues - variable.pyvalues, tg_grid, args.scatter
+  #       variable.idlvalues - variable.pyvalues, tggrid, args.scatter
   #     )
   #     print(Z2.mean(), Z2.std())
   #     norm2 = clr.TwoSlopeNorm(vcenter=0., vmin=Z2.min(), vmax=Z2.max())

@@ -280,7 +280,7 @@ class TGGrid(object):
     return ret
 
   # -------------------------------------------------------------------
-  def load(self, nc_grid):
+  def load(self):
 
     import numpy as np
 

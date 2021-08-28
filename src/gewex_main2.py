@@ -421,7 +421,7 @@ if __name__ == "__main__":
       ncgrid.load(V.get_ncfiles(params.dirin, args.date_start))
 
     if not tggrid.loaded:
-      tggrid.load(ncgrid)
+      tggrid.load()
 
     # ... Compute f(lon, date) stuff ...
     # ----------------------------------
