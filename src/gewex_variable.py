@@ -228,7 +228,7 @@ class Variable(object):
 
     self.ncprofiles[..., i] = (
       w_min * self.ncdata[t_min, ..., i] +
-      w_max * self.ncdata[t_min, ..., i]
+      w_max * self.ncdata[t_max, ..., i]
     )
 
   # -------------------------------------------------------------------
