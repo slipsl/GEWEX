@@ -180,6 +180,7 @@ if __name__ == "__main__":
     F"#PBS -l walltime=168:00:01",
     F"",
     F"date",
+    F"",
     F"module purge",
     F"module load python/3.6-anaconda50",
     F"source activate {conda_env}",
@@ -193,6 +194,9 @@ if __name__ == "__main__":
       F"{args.runtype} "
       F"{args.date_start:%Y%m%d} {args.date_end:%Y%m%d}"
     ),
+    F"",
+    F"source deactivate",
+    F"",
     F"date",
   ]
 

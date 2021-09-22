@@ -37,7 +37,7 @@
 # =====================================================================
 class Variable(object):
   # -------------------------------------------------------------------
-  def __init__(self, name, instru):
+  def __init__(self, name, instru, fileversion):
 
     import numpy as np
 
@@ -85,7 +85,7 @@ class Variable(object):
       self.coeff = 1.
       self.str = None
 
-    self.fileversion = "05"
+    self.fileversion = fileversion
     self.instru = instru.name
     self.ampm = instru.ampm
 

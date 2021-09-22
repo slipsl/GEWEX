@@ -73,21 +73,21 @@ def get_arguments():
   )
 
   parser.add_argument(
-    "-v", "--verbose", action="store_true",
-    help="Verbose mode"
-  )
-  parser.add_argument(
     "-f", "--force", action="store_true",
-    help="If output files exsist, replace them."
+    help="If output files exsist, replace them"
   )
   parser.add_argument(
     "--notemp", action="store_true",
     help="Don't produce temperature files"
   )
-
   parser.add_argument(
     "--noh2o", action="store_true",
     help="Don't produce spec. humidity files"
+  )
+
+  parser.add_argument(
+    "-v", "--verbose", action="store_true",
+    help="Verbose mode"
   )
 
   # parser.add_argument("-d", "--dryrun", action="store_true",
@@ -299,6 +299,7 @@ if __name__ == "__main__":
 
   # ... Constants ...
   # -----------------
+  fileversion = "SL03"
 
   # ... Files and directories ...
   # -----------------------------
@@ -330,16 +331,15 @@ if __name__ == "__main__":
   ncgrid = gwn.NCGrid()
   tggrid = gwv.TGGrid()
   # Variables
-  Psurf = gwv.Variable("Psurf", instru)
-  stat = gwv.Variable("stat", instru)
-  time = gwv.Variable("time", instru)
+  Psurf = gwv.Variable("Psurf", instru, fileversion)
+  stat = gwv.Variable("stat", instru, fileversion)
   if fg_temp:
-    Tsurf = gwv.Variable("Tsurf", instru)
-    T = gwv.Variable("temp", instru)
+    Tsurf = gwv.Variable("Tsurf", instru, fileversion)
+    T = gwv.Variable("temp", instru, fileversion)
   else:
     Tsurf = T = None
   if fg_h2o:
-    Q = gwv.Variable("h2o", instru)
+    Q = gwv.Variable("h2o", instru, fileversion)
   else:
     Q = None
 
@@ -441,7 +441,7 @@ if __name__ == "__main__":
     freemem()
     if args.verbose:
       code_start = dt.datetime.now()
-    for V in (time, ) + V_list:
+    for V in V_list:
       if args.verbose:
         print(F"{72*'~'}\nLoad nc data for {V.name}")
       V.ncdata = gwn.load_netcdf(
@@ -461,12 +461,6 @@ if __name__ == "__main__":
 
       if fg_print:
         print(F"lon = {ncgrid.lon[i]}")
-        print(
-          num2date(time.ncdata[time_indices[i][0]]),
-          weight[i][0],
-          num2date(time.ncdata[time_indices[i][1]]),
-          weight[i][1],
-        )
 
       if fg_print:
         print("Weighted nc mean")
@@ -507,6 +501,8 @@ if __name__ == "__main__":
 
     stat.tgprofiles[...] = 10000
 
+    # ... Write everything to F77 binary files ...
+    # --------------------------------------------
     if args.verbose:
       print("Write files")
     for V in V_list + (stat, ):

@@ -693,7 +693,7 @@ if __name__ == "__main__":
       lt_instru = 23.5
       ampm = "PM"
 
-  fileversion = "05"
+  fileversion = "SL01"
   pl_vars = ["ta", "q"]
   sf_vars = ["sp", "skt"]
 

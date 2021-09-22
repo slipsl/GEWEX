@@ -181,6 +181,16 @@ def get_ncfile(variable, dirin, date):
 
 
 #----------------------------------------------------------------------
+def read_netcdf_t(variable, t):
+
+
+  with Dataset(variable.ncfiles, "r", format="NETCDF4") as f:
+    rec = f.variables[variable.ncvar][t, ...]
+
+  return (variable.coeff * rec).copy()
+
+
+#----------------------------------------------------------------------
 def read_netcdf(variable, nc_grid, i_lon, i_time):
 
   import numpy as np

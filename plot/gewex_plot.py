@@ -72,6 +72,13 @@ def get_arguments():
     type=lambda s: dt.datetime.strptime(s, '%Y%m%d'),
     help="Date: YYYYMMJJ"
   )
+
+  parser.add_argument(
+    "--version", action="store",
+    default="SL03",
+    help="File version"
+  )
+
   parser.add_argument(
     "-s", "--scatter", action="store_true",
     help="Use scatter plot instead of contour"
@@ -169,7 +176,7 @@ def init_figure(mode):
 #----------------------------------------------------------------------
 def prep_data(var_in, grid, fg_scatter=False):
 
-  step = 4
+  step = 1
 
   if fg_scatter:
     lon = grid.lon[::step]
@@ -210,7 +217,7 @@ def plot_data(fg_scatter, ax, X, Y, Z, cmap, norm, title, nb=30):
     if fg_scatter:
       im = scatter_plot(ax, X, Y, Z, cmap, norm, title)
     else:
-      im = contour_plot(ax, X, Y, Z, cmap, title, nb=nb)
+      im = contour_plot(ax, X, Y, Z, cmap, norm, title, nb=nb)
     # im = ax.scatter(x=X, y=Y, c=Z, cmap=cmap, norm=norm)
     # cb = fig.colorbar(im, ax=ax, format="%.2e")
     write_comment(ax, Z)
@@ -224,7 +231,7 @@ def plot_data(fg_scatter, ax, X, Y, Z, cmap, norm, title, nb=30):
 #----------------------------------------------------------------------
 def scatter_plot(ax, X, Y, Z, cmap, norm, title):
 
-  im = ax.scatter(x=X, y=Y, c=Z, cmap=cmap, norm=norm)
+  im = ax.scatter(x=X, y=Y, c=Z, s=.1, cmap=cmap, norm=norm)
   # cb = fig.colorbar(im, ax=ax)
   # ax.set_title(title, loc="left")
   # cb = plot(ax, im, title)
@@ -234,9 +241,9 @@ def scatter_plot(ax, X, Y, Z, cmap, norm, title):
 
 
 #----------------------------------------------------------------------
-def contour_plot(ax, X, Y, Z, cmap, title, nb=30):
+def contour_plot(ax, X, Y, Z, cmap, norm, title, nb=30):
 
-  im = ax.contourf(X, Y, Z, levels=nb, cmap=cmap)
+  im = ax.contourf(X, Y, Z, levels=nb, cmap=cmap, norm=norm)
   # cb = fig.colorbar(im, ax=ax)
   # ax.set_title(title, loc="left")
   # plot(ax, cb, im, title)
@@ -363,8 +370,7 @@ if __name__ == "__main__":
   print(instru)
   print(params)
 
-
-  variable = gwv.Variable(args.varname, instru)
+  variable = gwv.Variable(args.varname, instru, args.version)
   print(variable)
 
   if variable.mode == "2d":
@@ -419,6 +425,11 @@ if __name__ == "__main__":
   variable.ncfiles = variable.get_ncfiles(params.dirin, args.date)
   variable.pyfile = variable.pathout(params.dirout, args.date)
   variable.idlfile = dir_idl.joinpath(variable.fileout(args.date))
+
+  variable.idlfile = Path(
+    str(variable.idlfile).replace(F"_{args.version}", "_05")
+  )
+
   pp.pprint(
     tuple(str(f) for f in (variable.ncfiles, variable.pyfile, variable.idlfile))
   )
@@ -475,7 +486,7 @@ if __name__ == "__main__":
   print(" - netcdf")
   # ------------------------
   nstep = 24  # number of time steps per day
-  i_time = (args.date.day - 1) * nstep
+  i_time = (args.date.day - 1) * nstep + int(instru.tnode)
   variable.ncvalues = (  # NetCDF grid
       gwn.read_netcdf(variable, ncgrid, slice(ncgrid.nlon), i_time)
   )

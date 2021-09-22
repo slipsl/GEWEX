@@ -34,7 +34,8 @@ pp = pprint.PrettyPrinter(indent=2)
 
 # Application library imports
 # ========================
-import gewex_param as gw
+import gewex_param as gwp
+import gewex_variable as gw
 import gewex_netcdf as gnc
 
 
@@ -336,15 +337,15 @@ if __name__ == "__main__":
   # # dirin_2d = dirin.joinpath("AN_SF")
   # dirout   = project_dir.joinpath("output")
 
-  instru = gw.InstruParam(args.runtype)
-  params = gw.GewexParam(project_dir)
+  instru = gwp.InstruParam(args.runtype)
+  params = gwp.GewexParam(project_dir)
 
   print(instru)
   print(params)
 
   fg_press = True
-  fg_temp  = True
-  fg_h2o   = True
+  fg_temp  = False
+  fg_h2o   = False
 
 
   # .. Main program ..
@@ -451,7 +452,7 @@ if __name__ == "__main__":
       nc_grid.load(variable.get_ncfiles(params.dirin, args.date_start))
 
     if not tg_grid.loaded:
-      tg_grid.load(nc_grid)
+      tg_grid.load()
 
     for i_lon, lon in enumerate(nc_grid.lon):
 

@@ -80,7 +80,7 @@ class GewexParam(object):
     # import platform
     import socket
  
-    self.fileversion = "05"
+    # self.fileversion = "05"
 
     # print(platform.node())
     if "ciclad" in socket.gethostname():
@@ -94,7 +94,7 @@ class GewexParam(object):
   # -------------------------------------------------------------------
   def __repr__(self):
     return (
-      F"File version: {self.fileversion}\n"
+      # F"File version: {self.fileversion}\n"
       F"Input dir:    {self.dirin}\n"
       F"Output dir:   {self.dirout}"
     )

@@ -1,0 +1,27 @@
+# name of my virtualenv
+name: gewex3
+# needed  anaconda channels 
+# channels:
+#    - defaults
+#    - conda-forge
+#    - mro
+# #   - javascript
+# package list to install via conda 
+dependencies:
+  - python=3.9.4
+  - pip
+  - psutil
+  - pathlib
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - netCDF4
+  # - pprint
+  # - datetime
+  # - os
+# package list installed via pip 
+#    - pip:
+#        - pycryptodomex==3.8.1
+#        - pytest-mpl==0.10
+#        - pytest-cov==2.6.1
