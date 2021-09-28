@@ -79,14 +79,18 @@ def get_arguments():
     "-f", "--force", action="store_true",
     help="If output files exsist, replace them."
   )
+
   parser.add_argument(
     "--notemp", action="store_true",
     help="Don't produce temperature files"
   )
-
   parser.add_argument(
     "--noh2o", action="store_true",
     help="Don't produce spec. humidity files"
+  )
+  parser.add_argument(
+    "--nosurf", action="store_true",
+    help="Don't produce surface type files"
   )
 
   # parser.add_argument("-d", "--dryrun", action="store_true",
@@ -161,6 +165,8 @@ if __name__ == "__main__":
     run_opt2.append("--notemp")
   if args.noh2o:
     run_opt2.append("--noh2o")
+  if args.nosurf:
+    run_opt2.append("--nosurf")
 
   # args_string = (
   #   "-" + "".join(run_opt1) +

@@ -84,6 +84,10 @@ def get_arguments():
     "--noh2o", action="store_true",
     help="Don't produce spec. humidity files"
   )
+  parser.add_argument(
+    "--nosurf", action="store_true",
+    help="Don't produce surface type files"
+  )
 
   parser.add_argument(
     "-v", "--verbose", action="store_true",
@@ -189,6 +193,7 @@ def lon2tutc(lon, date, node):
 
 #----------------------------------------------------------------------
 def utc2min(date):
+
   return date.replace(minute=0, second=0, microsecond=0)
 
 
@@ -274,10 +279,58 @@ def num2date(val):
     val,
     units=ncgrid.tunits,
     calendar=ncgrid.calendar,  # 'standard',
-    only_use_cftime_datetimes=False,  #True,
+    only_use_cftime_datetimes=False,  # True,
     only_use_python_datetimes=True,  # False,
     has_year_zero=None
   )
+
+
+#----------------------------------------------------------------------
+def get_surftype(params, surftype, landsea, seaice, snow):
+
+  """
+  CIRS surface type:
+    - 1 = land
+    - 2 = ocean
+    - 3 = snow / ice
+  """
+  surftype_land = 1
+  surftype_ocean = 2
+  surftype_ice = 3
+
+  surftype.tgprofiles[...] = surftype_ocean
+
+  # Identify land points
+  cond = (
+    (~landsea.tgprofiles.mask) &
+    (landsea.tgprofiles >= 0.5)
+    # (landsea.tgprofiles >= 0.5) & (landsea.tgprofiles <= 1.0)
+  )
+  # print(type(surftype.tgprofiles))
+  surftype.tgprofiles[cond] = surftype_land
+
+  # Identify ice / snow points
+  cond = (
+    (snow.tgprofiles > params.snowdepth_thresh) |
+    (
+      (~seaice.tgprofiles.mask) &
+      (seaice.tgprofiles > 0.5)
+      # ((seaice.tgprofiles > 0.5) & (seaice.tgprofiles <= 1.0))
+    )
+  )
+  surftype.tgprofiles[cond] = surftype_ice
+
+  i, j = (180, 1080)
+  print(
+    # np.where(seaice.tgprofiles > 1.0),
+    landsea.tgprofiles[i, j],
+    seaice.tgprofiles[i, j],
+    snow.tgprofiles[i, j],
+    cond[i, j],
+    surftype.tgprofiles[i, j]
+  )
+
+
 
 
 #######################################################################
@@ -299,7 +352,7 @@ if __name__ == "__main__":
 
   # ... Constants ...
   # -----------------
-  fileversion = "SL03"
+  fileversion = "SL04"
 
   # ... Files and directories ...
   # -----------------------------
@@ -319,8 +372,9 @@ if __name__ == "__main__":
   # fg_press = True
   # fg_temp  = True
   # fg_h2o   = True
-  fg_temp  = not args.notemp
-  fg_h2o   = not args.noh2o
+  fg_temp = not args.notemp
+  fg_h2o  = not args.noh2o
+  fg_surf = not args.nosurf
 
   # .. Main program ..
   # ==================
@@ -343,8 +397,16 @@ if __name__ == "__main__":
   else:
     Q = None
 
+  if fg_surf:
+    landsea = gwv.Variable("lsm", instru, fileversion)
+    seaice  = gwv.Variable("ci", instru, fileversion)
+    snow    = gwv.Variable("sd", instru, fileversion)
+    surftype = gwv.Variable("surftype", instru, fileversion)
+  else:
+    landsea = seaice = snow = surftype = None
+
   V_list = tuple(
-    V for V in (Psurf, Tsurf, T, Q) if V
+    V for V in (Psurf, Tsurf, T, Q, landsea, seaice, snow) if V
   )
 
 
@@ -432,7 +494,7 @@ if __name__ == "__main__":
     # --------------------------------------
     if args.verbose:
       print(F"{72*'~'}\nInit datas")
-    for V in V_list + (stat, ):
+    for V in V_list + (surftype, stat, ):
       V.init_datas(ncgrid, tggrid)
     freemem()
 
@@ -447,6 +509,7 @@ if __name__ == "__main__":
       V.ncdata = gwn.load_netcdf(
         V, date_min, date_max, params
       )
+      # print(type(V.ncdata))
       if args.verbose:
         print(V.ncdata.shape)
       freemem()
@@ -470,11 +533,29 @@ if __name__ == "__main__":
         if V.mode == "2d":
           V.tgprofiles[..., i] = V.ncprofiles[..., i]
           if fg_print:
+            # print(
+            #   V.name,
+            #   np.nanmin(V.tgprofiles),
+            #   np.nanmax(V.tgprofiles),
+            #   np.nanmean(V.tgprofiles),
+            # )
             print(
-              V.name,
-              np.nanmin(V.tgprofiles),
-              np.nanmax(V.tgprofiles),
-              np.nanmean(V.tgprofiles),
+              F"{V.name:5s} "
+              F"{np.nanmin(V.tgprofiles):9.3e} "
+              F"{np.nanmax(V.tgprofiles):9.3e} "
+              F"{np.nanmean(V.tgprofiles):9.3e}"
+            )
+            print(
+              F"{5*' '} "
+              F"{np.min(V.tgprofiles):9.3e} "
+              F"{np.max(V.tgprofiles):9.3e} "
+              F"{np.mean(V.tgprofiles):9.3e}"
+            )
+            print(
+              F"{5*' '} "
+              F"{np.ma.min(V.tgprofiles):9.3e} "
+              F"{np.ma.max(V.tgprofiles):9.3e} "
+              F"{np.ma.mean(V.tgprofiles):9.3e}"
             )
         else:
           if fg_print:
@@ -501,11 +582,28 @@ if __name__ == "__main__":
 
     stat.tgprofiles[...] = 10000
 
+    # ... Process surface type ...
+    # ----------------------------
+    if fg_surf:
+      get_surftype(params, surftype, landsea, seaice, snow)
+      # surftype.tgprofiles = get_surftype(params, surftype, landsea, seaice, snow)
+    if args.verbose:
+      # print(
+      #   surftype.name,
+      #   type(surftype.tgprofiles),
+      # )
+      print(
+        surftype.name,
+        np.nanmin(surftype.tgprofiles),
+        np.nanmax(surftype.tgprofiles),
+        np.nanmean(surftype.tgprofiles),
+      )
+
     # ... Write everything to F77 binary files ...
     # --------------------------------------------
     if args.verbose:
       print("Write files")
-    for V in V_list + (stat, ):
+    for V in V_list + (surftype, stat, ):
       fileout = V.pathout(params.dirout, date_curr)
       if fileout:
         if args.verbose:

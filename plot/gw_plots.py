@@ -49,7 +49,7 @@ def get_arguments():
   parser.add_argument(
     "varname", action="store",
     # type=int,
-    choices=["Psurf", "temp", "h2o"],
+    choices=["Psurf", "temp", "h2o", "surftype"],
     help=(
       "Variable to plot"
     )
@@ -79,9 +79,15 @@ def get_arguments():
   )
 
   parser.add_argument(
-    "--version", action="store",
-    default="SL03",
-    help="File version (default = \"SL03\", idl = \"05\")"
+    "--pyversion", action="store",
+    default="SL04",
+    help="File version (default = \"SL04\")"
+  )
+
+  parser.add_argument(
+    "--idlversion", action="store",
+    default="06",
+    help="File version (default = \"06\")"
   )
 
   parser.add_argument(
@@ -158,7 +164,7 @@ def img_name(mode, variable, date, instru):
 
   return (
     F"{args.mode}_"
-    F"{variable.name}_{date:%Y%M%d}_"
+    F"{variable.name}_{date:%Y%m%d}_"
     F"{instru.name}_{instru.ampm}"
   )
 
@@ -474,7 +480,7 @@ if __name__ == "__main__":
   print(instru)
   print(params)
 
-  variable = gwv.Variable(args.varname, instru, args.version)
+  variable = gwv.Variable(args.varname, instru, args.pyversion)
   print(variable)
 
   # print(variable.get_ncfiles(params.dirin, args.date))
@@ -484,7 +490,7 @@ if __name__ == "__main__":
 
   img_type = "png"
   img_name = img_name(args.mode, variable, args.date, instru)
-  print(img_name)
+  print(F"img = {img_name}")
 
   fig_title = fig_title(variable, args.date, instru)
 
@@ -493,7 +499,8 @@ if __name__ == "__main__":
   variable.idlfile = dir_idl.joinpath(variable.fileout(args.date))
 
   variable.idlfile = Path(
-    str(variable.idlfile).replace(F"_{args.version}", "_05")
+    # str(variable.idlfile).replace(F"_{args.pyversion}", "_05")
+    str(variable.idlfile).replace(F"_{args.pyversion}", F"_{args.idlversion}")
   )
 
   pp.pprint(

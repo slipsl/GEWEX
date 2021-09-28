@@ -46,6 +46,7 @@ class Variable(object):
     if name == "Psurf":
       self.longname = "Surface pressure"
       self.ncvar = "sp"
+      self.ncvar_alt = None
       self.mode = "2d"
       self.coeff = 1.e-2
       self.str = "L2_P_surf_daily_average"
@@ -53,6 +54,7 @@ class Variable(object):
     if name == "Tsurf":
       self.longname = "Skin temperature"
       self.ncvar = "skt"
+      self.ncvar_alt = None
       self.mode = "2d"
       self.coeff = 1.
       self.str = None
@@ -60,6 +62,7 @@ class Variable(object):
     if name == "temp":
       self.longname = "Temperature"
       self.ncvar = "ta"
+      self.ncvar_alt = None
       self.mode = "3d"
       self.coeff = 1.
       self.str = "L2_temperature_daily_average"
@@ -67,13 +70,50 @@ class Variable(object):
     if name == "h2o":
       self.longname = "Specific humidity"
       self.ncvar = "q"
+      self.ncvar_alt = None
       self.mode = "3d"
       self.coeff = instru.f_q
       self.str = "L2_H2O_daily_average"
       self.units = F"{self.coeff ** -1:1.0e} kg kg**-1"
+
+    if name == "ci":
+      self.longname = "Sea-ice cover"
+      self.ncvar = "ci"
+      self.ncvar_alt = "siconc"  # new var name since 01/2018
+      self.mode = "2d"
+      self.coeff = 1.
+      self.str = None
+      self.units = "(0-1)"
+    if name == "sd":
+      self.longname = "Snow depth"
+      self.ncvar = "sd"
+      self.ncvar_alt = None
+      self.mode = "2d"
+      self.coeff = 1.
+      self.str = None
+      self.units = "m of water equiv."
+    if name == "lsm":
+      self.longname = "Land-sea mask"
+      self.ncvar = "lsm"
+      self.ncvar_alt = None
+      self.mode = "2d"
+      self.coeff = 1.
+      self.str = None
+      self.units = "(0-1)"
+    if name == "surftype":
+      self.longname = "Surface type"
+      self.ncvar = "lsm"
+      # self.ncvar = None
+      self.ncvar_alt = None
+      self.mode = "2d"
+      self.coeff = 1.
+      self.str = "L2_SurfType"
+      self.units = "[1, 2, 3]"
+
     if name == "stat":
       self.longname = "Temp status"
       self.ncvar = None
+      self.ncvar_alt = None
       self.mode = "2d"
       self.coeff = None
       self.str = "L2_status"
@@ -81,6 +121,7 @@ class Variable(object):
     if name == "time":
       self.longname = "Time"
       self.ncvar = "time"
+      self.ncvar_alt = None
       self.mode = "2d"
       self.coeff = 1.
       self.str = None
@@ -120,8 +161,10 @@ class Variable(object):
 
     print(ncshape, tgshape)
 
-    self.ncprofiles = np.full(ncshape, np.nan)
-    self.tgprofiles = np.full(tgshape, np.nan)
+    # self.ncprofiles = np.full(ncshape, np.nan)
+    # self.tgprofiles = np.full(tgshape, np.nan)
+    self.ncprofiles = np.ma.empty(ncshape)
+    self.tgprofiles = np.ma.empty(tgshape)
     self.ncdata = None
 
   # -------------------------------------------------------------------

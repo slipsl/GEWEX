@@ -257,6 +257,12 @@ def load_netcdf(V, date_min, date_max, params):
 
   with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
     ntim = f.dimensions["time"].size
+    if V.ncvar not in f.variables:
+      ncvar = V.ncvar_alt
+    else:
+      ncvar = V.ncvar
+    miss_val = f.variables[ncvar].missing_value
+    # print(miss_val)
 
   (t0_i, t1_f) = (t_min, t_max + 1)
   if ncfiles[0] == ncfiles[1]:
@@ -266,15 +272,32 @@ def load_netcdf(V, date_min, date_max, params):
 
   # print(ncfiles[0], t0_i, t0_f, t0_f - t0_i)
   with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
-    var0 = f.variables[V.ncvar][t0_i:t0_f, ...].copy()
+    var0 = f.variables[ncvar][t0_i:t0_f, ...].copy()
+  if np.ma.is_masked(var0):
+    print(
+      F"{72*'='}\n"
+      F"=== /!\\   Missing values in {ncfiles[0]}   /!\\\n"
+      F"{72*'='}"
+    )
   var0 = var0 * V.coeff
   # print(var0.shape)
   # print(ncfiles[1], t1_i, t1_f, t1_f - t1_i)
   with Dataset(ncfiles[1], "r", format="NETCDF4") as f:
-    var1 = f.variables[V.ncvar][t1_i:t1_f, ...].copy()
+    var1 = f.variables[ncvar][t1_i:t1_f, ...].copy()
   var1 = var1 * V.coeff
   # print(var1.shape)
 
-  var = np.concatenate((var0, var1), axis=0)
+  var = np.ma.concatenate((var0, var1), axis=0)
+
+  cond = (var == miss_val)
+  if not cond.all():
+    print("missing")
+    print(var[cond])
+
+
+  # if V.name == "ci":
+  #   print(var)
+
+  # print(type(var))
 
   return var

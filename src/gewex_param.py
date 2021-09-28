@@ -82,6 +82,9 @@ class GewexParam(object):
  
     # self.fileversion = "05"
 
+    # 1e-3 m == 0.1 cm of equivalent water == 0.5 cm of snow (18.08.2021)
+    self.snowdepth_thresh = 1.e-3
+
     # print(platform.node())
     if "ciclad" in socket.gethostname():
       self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
