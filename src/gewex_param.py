@@ -86,9 +86,12 @@ class GewexParam(object):
     self.snowdepth_thresh = 1.e-3
 
     # print(platform.node())
-    if "ciclad" in socket.gethostname():
+    ipsl = ("ciclad", "camelot", "loholt1")
+    # if "ciclad" in socket.gethostname():
+    if any(h in socket.gethostname() for h in ipsl):
       self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
       self.dirout = Path("/data/slipsl/GEWEX/ERA5_averages")
+      # self.dirout = Path("/bdd/CIRS-LMD/ERA5_averages")
     else:
       self.dirin = project_dir.joinpath("input")
       self.dirout = project_dir.joinpath("output")
