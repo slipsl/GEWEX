@@ -237,6 +237,27 @@ def read_netcdf(variable, nc_grid, i_lon, i_time):
 
 
 #----------------------------------------------------------------------
+def check_miss_val(var, ncfiles, params):
+
+  import numpy as np
+  from pathlib import Path
+
+  if np.ma.is_masked(var):
+    print(
+      F"{72*'='}\n"
+      F"= {18*' '} /!\\   Missing values in:   /!\\ {18*' '} ="
+      # F"{72*'-'}"
+    )
+    with open(params.dirlog.joinpath("ERA5_missvalues.dat"), "a") as f:
+      for ncf in set(ncfiles):
+        print(F"= {ncf}")
+        f.write(F"{ncf}\n")
+      print(F"{72*'='}")
+
+  return
+
+
+#----------------------------------------------------------------------
 def load_netcdf(V, date_min, date_max, params):
 
   import numpy as np
@@ -273,12 +294,12 @@ def load_netcdf(V, date_min, date_max, params):
   # print(ncfiles[0], t0_i, t0_f, t0_f - t0_i)
   with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
     var0 = f.variables[ncvar][t0_i:t0_f, ...].copy()
-  if np.ma.is_masked(var0):
-    print(
-      F"{72*'='}\n"
-      F"=== /!\\   Missing values in {ncfiles[0]}   /!\\\n"
-      F"{72*'='}"
-    )
+  # if np.ma.is_masked(var0):
+  #   print(
+  #     F"{72*'='}\n"
+  #     F"=== /!\\   Missing values in {ncfiles[0]}   /!\\\n"
+  #     F"{72*'='}"
+  #   )
   var0 = var0 * V.coeff
   # print(var0.shape)
   # print(ncfiles[1], t1_i, t1_f, t1_f - t1_i)
@@ -289,10 +310,19 @@ def load_netcdf(V, date_min, date_max, params):
 
   var = np.ma.concatenate((var0, var1), axis=0)
 
-  cond = (var == miss_val)
-  if not cond.all():
-    print("missing")
-    print(var[cond])
+  check_miss_val(var, ncfiles, params)
+
+
+  # cond = (var == miss_val)
+  # if not cond.all():
+  #   print("missing")
+  #   print(var[cond])
+  # if np.ma.is_masked(var):
+  #   print(
+  #     F"{72*'='}\n"
+  #     F"=== /!\\   Missing values in {ncfiles}   /!\\\n"
+  #     F"{72*'='}"
+  #   )
 
 
   # if V.name == "ci":

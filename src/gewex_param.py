@@ -95,6 +95,7 @@ class GewexParam(object):
     else:
       self.dirin = project_dir.joinpath("input")
       self.dirout = project_dir.joinpath("output")
+    self.dirlog = project_dir.joinpath("run", "log")
 
 
   # -------------------------------------------------------------------
