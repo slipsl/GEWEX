@@ -123,18 +123,20 @@ class NCGrid(object):
     # print(F"Load grid from {filenc}\n"+72*"=")
     self.loaded = True
 
-    with Dataset(filenc, "r", format="NETCDF4") as f_nc:
-      # f_nc.variables["latitude"].set_auto_mask(False)
-      f_nc.set_auto_mask(False)
-      self.lat = f_nc.variables["latitude"][:]
-      self.lon = f_nc.variables["longitude"][:]
-      self.time = f_nc.variables["time"][:]
-      self.calendar = f_nc.variables["time"].calendar
-      self.tunits = f_nc.variables["time"].units
-      if "level" in f_nc.dimensions:
-        self.lev = f_nc.variables["level"][:]
-      else:
-        self.lev = None
+    # with Dataset(filenc, "r", format="NETCDF4") as f_nc:
+    f_nc = open_netcdf(filenc)
+    # f_nc.variables["latitude"].set_auto_mask(False)
+    f_nc.set_auto_mask(False)
+    self.lat = f_nc.variables["latitude"][:]
+    self.lon = f_nc.variables["longitude"][:]
+    self.time = f_nc.variables["time"][:]
+    self.calendar = f_nc.variables["time"].calendar
+    self.tunits = f_nc.variables["time"].units
+    if "level" in f_nc.dimensions:
+      self.lev = f_nc.variables["level"][:]
+    else:
+      self.lev = None
+    f_nc.close()
 
     self.nlat = self.lat.size
     self.nlon = self.lon.size
@@ -178,6 +180,25 @@ def get_ncfile(variable, dirin, date):
 
   # skt.202102.as1e5.GLOBAL_025.nc
   # sp.202102.as1e5.GLOBAL_025.nc
+
+
+#----------------------------------------------------------------------
+def open_netcdf(filename):
+  import errno
+
+  for i in range(3):
+    try:
+      f = Dataset(filename, "r", format="NETCDF4")
+    except OSError as osex:
+      # if osex.errno == errno.ESTALE:
+        print(
+          F"Error for file {osex.filename}:\n"
+          F"{osex.strerror}\n"
+          F"Let's retry"
+        )
+    else:
+      break
+  return f
 
 
 #----------------------------------------------------------------------
@@ -263,6 +284,27 @@ def load_netcdf(V, date_min, date_max, params):
   import numpy as np
   from pathlib import Path
 
+
+  def open_netcdf(filename):
+  #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    import errno
+
+    for i in range(3):
+      try:
+        f = Dataset(filename, "r", format="NETCDF4")
+      except OSError as osex:
+        # if osex.errno == errno.ESTALE:
+          print(
+            F"Error for file {osex.filename}:\n"
+            F"{osex.strerror}\n"
+            F"Let's retry"
+          )
+      else:
+        break
+    return f
+  #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
   ncfiles = V.get_ncfiles(params.dirin, (date_min, date_max))
 
   t_min, t_max = [
@@ -276,14 +318,16 @@ def load_netcdf(V, date_min, date_max, params):
       for f in ncfiles
     )
 
-  with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
-    ntim = f.dimensions["time"].size
-    if V.name not in f.variables:
-      ncvar = V.altname
-    else:
-      ncvar = V.name
-    miss_val = f.variables[ncvar].missing_value
-    # print(miss_val)
+  f = open_netcdf(ncfiles[0])
+  # with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
+  ntim = f.dimensions["time"].size
+  if V.name not in f.variables:
+    ncvar = V.altname
+  else:
+    ncvar = V.name
+  miss_val = f.variables[ncvar].missing_value
+  # print(miss_val)
+  f.close()
 
   (t0_i, t1_f) = (t_min, t_max + 1)
   if ncfiles[0] == ncfiles[1]:
@@ -291,43 +335,22 @@ def load_netcdf(V, date_min, date_max, params):
   else:
     (t0_f, t1_i) = (ntim, 0)
 
-  # print(ncfiles[0], t0_i, t0_f, t0_f - t0_i)
-  with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
-    var0 = f.variables[ncvar][t0_i:t0_f, ...].copy()
-  # if np.ma.is_masked(var0):
-  #   print(
-  #     F"{72*'='}\n"
-  #     F"=== /!\\   Missing values in {ncfiles[0]}   /!\\\n"
-  #     F"{72*'='}"
-  #   )
+  #  with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
+  #    var0 = f.variables[ncvar][t0_i:t0_f, ...].copy()
+  #  var0 = var0 * V.coeff
+  #  with Dataset(ncfiles[1], "r", format="NETCDF4") as f:
+  #    var1 = f.variables[ncvar][t1_i:t1_f, ...].copy()
+  #  var1 = var1 * V.coeff
+  f0 = open_netcdf(ncfiles[0])
+  var0 = f0.variables[ncvar][t0_i:t0_f, ...].copy()
+  f0.close()
+  f1 = open_netcdf(ncfiles[1])
+  var1 = f1.variables[ncvar][t1_i:t1_f, ...].copy()
+  f1.close()
   var0 = var0 * V.coeff
-  # print(var0.shape)
-  # print(ncfiles[1], t1_i, t1_f, t1_f - t1_i)
-  with Dataset(ncfiles[1], "r", format="NETCDF4") as f:
-    var1 = f.variables[ncvar][t1_i:t1_f, ...].copy()
   var1 = var1 * V.coeff
-  # print(var1.shape)
 
   var = np.ma.concatenate((var0, var1), axis=0)
-
   check_miss_val(var, ncfiles, params)
-
-
-  # cond = (var == miss_val)
-  # if not cond.all():
-  #   print("missing")
-  #   print(var[cond])
-  # if np.ma.is_masked(var):
-  #   print(
-  #     F"{72*'='}\n"
-  #     F"=== /!\\   Missing values in {ncfiles}   /!\\\n"
-  #     F"{72*'='}"
-  #   )
-
-
-  # if V.name == "ci":
-  #   print(var)
-
-  # print(type(var))
 
   return var
