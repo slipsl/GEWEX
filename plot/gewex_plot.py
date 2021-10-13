@@ -231,7 +231,7 @@ def plot_data(fg_scatter, ax, X, Y, Z, cmap, norm, title, nb=30):
 #----------------------------------------------------------------------
 def scatter_plot(ax, X, Y, Z, cmap, norm, title):
 
-  im = ax.scatter(x=X, y=Y, c=Z, s=.1, cmap=cmap, norm=norm)
+  im = ax.scatter(x=X, y=Y, c=Z, s=0.1, cmap=cmap, norm=norm)
   # cb = fig.colorbar(im, ax=ax)
   # ax.set_title(title, loc="left")
   # cb = plot(ax, im, title)
