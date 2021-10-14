@@ -83,10 +83,14 @@ class VarNC(object):
     # self.ncdata = None
 
   # -------------------------------------------------------------------
-  def clear_datas(self):
+  def clear_datas(self, mode="full"):
 
-    del self.ncprofiles
-    del self.ncdata
+    if mode == "full":
+      del self.ncprofiles
+    try:
+      del self.ncdata
+    except AttributeError as err:
+      pass
 
   # -------------------------------------------------------------------
   def get_ncfiles(self, dirin, dates):
