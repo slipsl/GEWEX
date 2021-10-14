@@ -430,6 +430,7 @@ def write_f77(V, filename, profiles, ncgrid, tggrid):
 if __name__ == "__main__":
 
   run_deb = dt.datetime.now()
+  freemem()
 
   # .. Initialization ..
   # ====================
@@ -444,7 +445,7 @@ if __name__ == "__main__":
 
   # ... Constants ...
   # -----------------
-  fileversion = "SL05"
+  fileversion = "SL04"
 
   # ... Files and directories ...
   # -----------------------------
@@ -577,6 +578,7 @@ if __name__ == "__main__":
         Vnc.ncdata = gwn.load_netcdf(
           Vnc, date_min, date_max, params
         )
+        freemem()
     if args.verbose:
       code_stop = dt.datetime.now()
       print(code_stop - code_start)
