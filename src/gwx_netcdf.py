@@ -175,12 +175,6 @@ def get_ncfile(variable, dirin, date):
     )
   )
 
-  # ta.202102.ap1e5.GLOBAL_025.nc
-  # q.202102.ap1e5.GLOBAL_025.nc
-
-  # skt.202102.as1e5.GLOBAL_025.nc
-  # sp.202102.as1e5.GLOBAL_025.nc
-
 
 #----------------------------------------------------------------------
 def open_netcdf(filename):
@@ -285,24 +279,24 @@ def load_netcdf(V, date_min, date_max, params):
   from pathlib import Path
 
 
-  def open_netcdf(filename):
-  #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    import errno
+  # def open_netcdf(filename):
+  # #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #   import errno
 
-    for i in range(3):
-      try:
-        f = Dataset(filename, "r", format="NETCDF4")
-      except OSError as osex:
-        # if osex.errno == errno.ESTALE:
-          print(
-            F"Error for file {osex.filename}:\n"
-            F"{osex.strerror}\n"
-            F"Let's retry"
-          )
-      else:
-        break
-    return f
-  #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #   for i in range(3):
+  #     try:
+  #       f = Dataset(filename, "r", format="NETCDF4")
+  #     except OSError as osex:
+  #       # if osex.errno == errno.ESTALE:
+  #         print(
+  #           F"Error for file {osex.filename}:\n"
+  #           F"{osex.strerror}\n"
+  #           F"Let's retry"
+  #         )
+  #     else:
+  #       break
+  #   return f
+  # #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
   ncfiles = V.get_ncfiles(params.dirin, (date_min, date_max))
@@ -321,12 +315,12 @@ def load_netcdf(V, date_min, date_max, params):
   f = open_netcdf(ncfiles[0])
   # with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
   ntim = f.dimensions["time"].size
-  if V.name not in f.variables:
-    ncvar = V.altname
-  else:
-    ncvar = V.name
   miss_val = f.variables[ncvar].missing_value
   # print(miss_val)
+  # if V.name not in f.variables:
+  #   ncvar = V.altname
+  # else:
+  #   ncvar = V.name
   f.close()
 
   (t0_i, t1_f) = (t_min, t_max + 1)
@@ -342,9 +336,21 @@ def load_netcdf(V, date_min, date_max, params):
   #    var1 = f.variables[ncvar][t1_i:t1_f, ...].copy()
   #  var1 = var1 * V.coeff
   f0 = open_netcdf(ncfiles[0])
+  ntim = f0.dimensions["time"].size
+  miss_val = f0.variables[ncvar].missing_value
+  # print(miss_val)
+  if V.name not in f0.variables:
+    ncvar = V.altname
+  else:
+    ncvar = V.name
   var0 = f0.variables[ncvar][t0_i:t0_f, ...].copy()
   f0.close()
+
   f1 = open_netcdf(ncfiles[1])
+  if V.name not in f1.variables:
+    ncvar = V.altname
+  else:
+    ncvar = V.name
   var1 = f1.variables[ncvar][t1_i:t1_f, ...].copy()
   f1.close()
   var0 = var0 * V.coeff
