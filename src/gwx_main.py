@@ -139,17 +139,36 @@ def date_next(date):
 #----------------------------------------------------------------------
 def check_inputs(V_list, date, dirin):
 
+  dates = (date_prev(date), date, date_next(date))
+
   f_list = []
   for V in V_list:
     for Vnc in V.ncvars.values():
+      for f in Vnc.get_ncfiles(dirin, dates):
 
-      f_list.extend([
-        f for f in Vnc.get_ncfiles(
-          dirin,
-          (date_prev(date), date, date_next(date))
-        )
-        if not f.exists()
-      ])
+        for i in range(3):
+          try:
+            fg_exist = f.exists()
+          except OSError as osex:
+            # if osex.errno == errno.ESTALE:
+            print(
+              F"Error for file {osex.filename}:\n"
+              F"{osex.strerror}\n"
+              F"Let's retry {i+1}"
+            )
+          else:
+            break
+
+          if fg_exist:
+            f_list.append(f)
+
+      # f_list.extend([
+      #   f for f in Vnc.get_ncfiles(
+      #     dirin,
+      #     (date_prev(date), date, date_next(date))
+      #   )
+      #   if not f.exists()
+      # ])
 
   return f_list
 
