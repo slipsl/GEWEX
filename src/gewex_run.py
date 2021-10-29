@@ -138,7 +138,8 @@ if __name__ == "__main__":
   )
   runfile = dirout.joinpath(F"{filebase}.sh")
 
-  pgm = Path("src").joinpath("gewex_main2.py")
+  # pgm = Path("src").joinpath("gewex_main2.py")
+  pgm = Path("src").joinpath("gwx_main.py")
   conda_env = "gewex2"
 
   # print(pgm)
