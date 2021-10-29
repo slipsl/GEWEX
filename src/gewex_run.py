@@ -50,14 +50,16 @@ def get_arguments():
   parser.add_argument(
     "runtype", action="store",
     type=int,
-    choices=[1, 2, 3, 4, 5],
+    choices=[1, 2, 3, 4, 5, 6, 9],
     help=(
       "Run type:\n"
       "  - 1 = AIRS / AM\n"
       "  - 2 = AIRS / PM\n"
-      "  - 3 = IASI / AM\n"
-      "  - 4 = IASI / PM\n"
-      "  - 5 = Test mode (node = 0.0)\n"
+      "  - 3 = IASI-A / AM\n"
+      "  - 4 = IASI-A / PM\n"
+      "  - 5 = IASI-B / AM\n"
+      "  - 6 = IASI-B / PM\n"
+      "  - 9 = Test mode (node = 0.0)\n"
     )
   )
   parser.add_argument(
@@ -69,6 +71,12 @@ def get_arguments():
     "date_end", action="store",
     type=lambda s: dt.datetime.strptime(s, "%Y%m%d"),
     help="End date: YYYYMMJJ"
+  )
+  parser.add_argument(
+    "machine", action="store",
+    choices=["ciclad", "climserv"],
+    # type=lambda s: dt.datetime.strptime(s, "%Y%m%d"),
+    help="Cluster name"
   )
 
   parser.add_argument(
@@ -154,6 +162,11 @@ if __name__ == "__main__":
   #   F"{args.date_end:%Y%m%d}",
   # ]
 
+  if args.machine == "ciclad":
+    queue = "weeks2"
+  elif args.machine == "climserv":
+    queue = "week"
+
   run_opt1 = []
   if args.verbose:
     run_opt1.append("-v")
@@ -179,7 +192,7 @@ if __name__ == "__main__":
     F"#!/bin/sh",
     F"",
     F"#PBS -N {title}",
-    F"#PBS -q weeks2",
+    F"#PBS -q {queue}",
     F"#PBS -o {dirlog.joinpath(filebase)}.out",
     F"#PBS -e {dirlog.joinpath(filebase)}.err",
     F"#PBS -l mem=15gb,vmem=15gb",
