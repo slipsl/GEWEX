@@ -46,9 +46,11 @@ def get_arguments():
       "Run type:\n"
       "  - 1 = AIRS / AM\n"
       "  - 2 = AIRS / PM\n"
-      "  - 3 = IASI / AM\n"
-      "  - 4 = IASI / PM\n"
-      "  - 5 = Test mode (node = 0.0)\n"
+      "  - 3 = IASI-A / AM\n"
+      "  - 4 = IASI-A / PM\n"
+      "  - 5 = IASI-B / AM\n"
+      "  - 6 = IASI-B / PM\n"
+      "  - 9 = Test mode (node = 0.0)\n"
     )
   )
   parser.add_argument(
@@ -173,7 +175,8 @@ def lon2tutc(lon, date, node):
     lon = lon - 360.
 
   offset = 0.5
-  hours = (node - offset - lon / 15.)
+  delta_lon = 15.  # 15° per hour (360° for 24 hours)
+  hours = (node - offset - lon / delta_lon)
 
   return date + dt.timedelta(hours=hours)
 
