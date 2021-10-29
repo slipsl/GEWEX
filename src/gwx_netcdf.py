@@ -194,7 +194,7 @@ def open_netcdf(filename):
         print(
           F"Error for file {osex.filename}:\n"
           F"{osex.strerror}\n"
-          F"Let's retry"
+          F"Let's retry {i+1}"
         )
     else:
       break
