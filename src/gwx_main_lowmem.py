@@ -41,16 +41,14 @@ def get_arguments():
   parser.add_argument(
     "runtype", action="store",
     type=int,
-    choices=[1, 2, 3, 4, 5, 6, 9],
+    choices=[1, 2, 3, 4, 5],
     help=(
       "Run type:\n"
       "  - 1 = AIRS / AM\n"
       "  - 2 = AIRS / PM\n"
-      "  - 3 = IASI-A / AM\n"
-      "  - 4 = IASI-A / PM\n"
-      "  - 5 = IASI-B / AM\n"
-      "  - 6 = IASI-B / PM\n"
-      "  - 9 = Test mode (node = 0.0)\n"
+      "  - 3 = IASI / AM\n"
+      "  - 4 = IASI / PM\n"
+      "  - 5 = Test mode (node = 0.0)\n"
     )
   )
   parser.add_argument(
@@ -141,36 +139,17 @@ def date_next(date):
 #----------------------------------------------------------------------
 def check_inputs(V_list, date, dirin):
 
-  dates = (date_prev(date), date, date_next(date))
-
   f_list = []
   for V in V_list:
     for Vnc in V.ncvars.values():
-      for f in Vnc.get_ncfiles(dirin, dates):
 
-        for i in range(3):
-          try:
-            fg_exist = f.exists()
-          except OSError as osex:
-            # if osex.errno == errno.ESTALE:
-            print(
-              F"Error for file {osex.filename}:\n"
-              F"{osex.strerror}\n"
-              F"Let's retry {i+1}"
-            )
-          else:
-            break
-
-          if fg_exist:
-            f_list.append(f)
-
-      # f_list.extend([
-      #   f for f in Vnc.get_ncfiles(
-      #     dirin,
-      #     (date_prev(date), date, date_next(date))
-      #   )
-      #   if not f.exists()
-      # ])
+      f_list.extend([
+        f for f in Vnc.get_ncfiles(
+          dirin,
+          (date_prev(date), date, date_next(date))
+        )
+        if not f.exists()
+      ])
 
   return f_list
 
@@ -194,8 +173,7 @@ def lon2tutc(lon, date, node):
     lon = lon - 360.
 
   offset = 0.5
-  delta_lon = 15.  # 15° per hour (360° for 24 hours)
-  hours = (node - offset - lon / delta_lon)
+  hours = (node - offset - lon / 15.)
 
   return date + dt.timedelta(hours=hours)
 
@@ -580,44 +558,80 @@ if __name__ == "__main__":
     weight, time_indices, (date_min, date_max) = \
       get_weight_indices(ncgrid.lon, date_curr, instru.tnode)
 
-    # ... Init arrays for variables data ...
-    # --------------------------------------
-    if args.verbose:
-      print(F"{72*'~'}\nInit datas")
-    # for V in V_list + (surftype, stat, ):
     for V in V_list:
+      # ... Init arrays for variables data ...
+      # --------------------------------------
       V.init_datas(ncgrid, tggrid)
-    freemem()
 
-    # ... Load netcdf data ...
-    # ------------------------
-    if args.verbose:
-      code_start = dt.datetime.now()
-    for V in V_list:
       for Vnc in V.ncvars.values():
+        # ... Load netcdf data ...
+        # ------------------------
         if args.verbose:
           print(F"{72*'~'}\nLoad nc data for {V.name}[{Vnc.name}]")
         Vnc.ncdata = gwn.load_netcdf(
           Vnc, date_min, date_max, params
         )
         freemem()
-    if args.verbose:
-      code_stop = dt.datetime.now()
-      print(code_stop - code_start)
 
-    # ... Loop over netcdf longitudes ...
-    # -----------------------------------
-    for i in range(ncgrid.nlon):
-      fg_print = not (i % 60) and args.verbose
+        # ... Loop over netcdf longitudes ...
+        # -----------------------------------
+        for i in range(ncgrid.nlon):
+          fg_print = not (i % 60) and args.verbose
 
-      if fg_print:
-        print(F"lon = {ncgrid.lon[i]}")
+          if fg_print:
+            print(F"lon = {ncgrid.lon[i]}")
 
-      if fg_print:
-        print("Weighted nc mean")
-      for V in V_list:
-        for Vnc in V.ncvars.values():
+          if fg_print:
+            print("Weighted nc mean")
           Vnc.get_wght_mean(i, weight[i], time_indices[i])
+
+        # ... Some cleaning to free memory ...
+        # ------------------------------------
+        if args.verbose:
+          print(F"{72*'~'}\nClear datas")
+        Vnc.clear_datas(mode="ncdata")
+        freemem()
+
+
+
+
+    # # ... Init arrays for variables data ...
+    # # --------------------------------------
+    # if args.verbose:
+    #   print(F"{72*'~'}\nInit datas")
+    # # for V in V_list + (surftype, stat, ):
+    # for V in V_list:
+    #   V.init_datas(ncgrid, tggrid)
+    # freemem()
+
+    # # ... Load netcdf data ...
+    # # ------------------------
+    # if args.verbose:
+    #   code_start = dt.datetime.now()
+    # for V in V_list:
+    #   for Vnc in V.ncvars.values():
+    #     if args.verbose:
+    #       print(F"{72*'~'}\nLoad nc data for {V.name}[{Vnc.name}]")
+    #     Vnc.ncdata = gwn.load_netcdf(
+    #       Vnc, date_min, date_max, params
+    #     )
+    # if args.verbose:
+    #   code_stop = dt.datetime.now()
+    #   print(code_stop - code_start)
+
+    # # ... Loop over netcdf longitudes ...
+    # # -----------------------------------
+    # for i in range(ncgrid.nlon):
+    #   fg_print = not (i % 60) and args.verbose
+
+    #   if fg_print:
+    #     print(F"lon = {ncgrid.lon[i]}")
+
+    #   if fg_print:
+    #     print("Weighted nc mean")
+    #   for V in V_list:
+    #     for Vnc in V.ncvars.values():
+    #       Vnc.get_wght_mean(i, weight[i], time_indices[i])
 
     # ... Process surface pressure ...
     # --------------------------------
