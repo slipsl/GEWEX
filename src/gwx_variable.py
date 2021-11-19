@@ -141,13 +141,15 @@ class VarNC(object):
 class VarOut(object):
   # -------------------------------------------------------------------
   def __init__(self, name, instru, fileversion):
-    pass
+    import numpy as np
 
     variables = {
       "P": {
         "longname": "Surface pressure",
         "outstr": "L2_P_surf_daily_average",
         "mode": "2d",
+        "dtype_in": ">f4",
+        "dtype_out": np.float32,
         "extralev": 0,
         "ncvars": {
           "sp": VarNC("sp", "2d", 1.e-2),
@@ -158,6 +160,8 @@ class VarOut(object):
         "longname": "Specific humidity",
         "outstr": "L2_H2O_daily_average",
         "mode": "3d",
+        "dtype_in": ">f4",
+        "dtype_out": np.float32,
         "extralev": 0,
         "ncvars": {
           "q": VarNC("q", "3d", instru.f_q),
@@ -168,6 +172,8 @@ class VarOut(object):
         "longname": "Temperature",
         "outstr": "L2_temperature_daily_average",
         "mode": "3d",
+        "dtype_in": ">f4",
+        "dtype_out": np.float32,
         "extralev": 2,
         "ncvars": {
           "ta": VarNC("ta", "3d", 1.),
@@ -179,6 +185,8 @@ class VarOut(object):
         "longname": "Surface type",
         "outstr": "L2_SurfType",
         "mode": "2d",
+        "dtype_in": ">i4",
+        "dtype_out": np.int32,
         "extralev": 0,
         "ncvars": {
           "ci": VarNC("ci", "2d", 1., "siconc"),
@@ -193,6 +201,8 @@ class VarOut(object):
     self.longname = variables[name]["longname"]
     self.outstr = variables[name]["outstr"]
     self.mode = variables[name]["mode"]
+    self.dtype_in = variables[name]["dtype_in"]
+    self.dtype_out = variables[name]["dtype_out"]
     self.extralev = variables[name]["extralev"]
     self.ncvars = variables[name]["ncvars"]
     self.statfile = variables[name]["statfile"]

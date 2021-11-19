@@ -73,6 +73,10 @@ def get_arguments():
     help="Don't produce temperature files"
   )
   parser.add_argument(
+    "--status", action="store_true",
+    help="Produce status files"
+  )
+  parser.add_argument(
     "--noh2o", action="store_true",
     help="Don't produce spec. humidity files"
   )
@@ -307,38 +311,39 @@ def get_temp(params, T, P, ncgrid, tggrid):
   import numpy as np
   from scipy.interpolate import interp1d
 
-  for i in range(ncgrid.nlon):
-    for j in range(ncgrid.nlat):
-      fg_print = not (i % 60) and not (j % 60) and args.verbose
-      if fg_print:
-        print(
-          F"lon = {ncgrid.lon[i]} ; "
-          F"lat = {ncgrid.lat[j]}"
-        )
+  if fg_temp:
+    for i in range(ncgrid.nlon):
+      for j in range(ncgrid.nlat):
+        fg_print = not (i % 60) and not (j % 60) and args.verbose
+        if fg_print:
+          print(
+            F"lon = {ncgrid.lon[i]} ; "
+            F"lat = {ncgrid.lat[j]}"
+          )
 
-      X = ncgrid.lev
-      Y = T.ncvars["ta"].ncprofiles[..., j, i]
+        X = ncgrid.lev
+        Y = T.ncvars["ta"].ncprofiles[..., j, i]
 
-      cond = np.full(T.tgprofiles.shape[0], False)
-      cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
+        cond = np.full(T.tgprofiles.shape[0], False)
+        cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
 
-      fn = interp(X, Y)
+        fn = interp(X, Y)
 
-      T.tgprofiles[cond, j, i] = fn(tggrid.lev[cond[:tggrid.nlev]])
+        T.tgprofiles[cond, j, i] = fn(tggrid.lev[cond[:tggrid.nlev]])
 
-      T0 = T.ncvars["skt"].ncprofiles[j, i]
-      T.tgprofiles[~cond, j, i] = T0
+        T0 = T.ncvars["skt"].ncprofiles[j, i]
+        T.tgprofiles[~cond, j, i] = T0
 
-  cond = (T.tgprofiles < 0.)
-  if np.any(cond):
-    print(
-      F"{72*'='}\n"
-      F"= {16*' '} /!\\   Negative temperatures   /!\\ {17*' '} =\n"
-      F"= {16*' '} /!\\   - {np.count_nonzero(cond):6d} elements         /!\\ {17*' '} =\n"
-      F"{72*'='}"
-    )
+    cond = (T.tgprofiles < 0.)
+    if np.any(cond):
+      print(
+        F"{72*'='}\n"
+        F"= {16*' '} /!\\   Negative temperatures   /!\\ {17*' '} =\n"
+        F"= {16*' '} /!\\   - {np.count_nonzero(cond):6d} elements         /!\\ {17*' '} =\n"
+        F"{72*'='}"
+      )
 
-    T.stprofiles[...] = 10000
+  T.stprofiles[...] = 10000
 
   return
 
@@ -435,13 +440,22 @@ def get_surftype(params, S):
 
 
 #----------------------------------------------------------------------
-def write_f77(V, filename, profiles, ncgrid, tggrid):
+def write_f77(V, filename, profiles, ncgrid, tggrid, mode="data"):
 
   values = gwv.grid_nc2tg(profiles, ncgrid, tggrid)
 
+  if mode == "data":
+    dtype_in = V.dtype_in
+    # dtype_out = 
+  else:
+    dtype_in = ">i4"
+    # dtype_out = 
+
+
   with FortranFile(filename, mode="w", header_dtype=">u4") as f:
     f.write_record(
-      np.rollaxis(values, -1, -2).astype(dtype=">f4")
+      # np.rollaxis(values, -1, -2).astype(dtype=">f4")
+      np.rollaxis(values, -1, -2).astype(dtype=dtype_in)
     )
 
   return
@@ -480,6 +494,7 @@ if __name__ == "__main__":
     print(instru)
     print(params)
 
+  fg_status = args.status
   fg_temp = not args.notemp
   fg_h2o  = not args.noh2o
   fg_surf = not args.nosurf
@@ -495,7 +510,7 @@ if __name__ == "__main__":
   # Variables
   P = gwv.VarOut("P", instru, fileversion)
   T = Q = S = None
-  if fg_temp:
+  if fg_temp or fg_status:
     T = gwv.VarOut("T", instru, fileversion)
   if fg_h2o:
     Q = gwv.VarOut("Q", instru, fileversion)
@@ -627,10 +642,16 @@ if __name__ == "__main__":
 
     # ... Process temperature ...
     # ---------------------------
-    if fg_temp:
+    if fg_temp or fg_status:
       get_temp(params, T, P, ncgrid, tggrid)
       if args.verbose:
         T.print_values()
+      print(
+        T.stprofiles.min(),
+        T.stprofiles.max(),
+        T.stprofiles.mean(),
+        T.stprofiles.std(),
+      )
 
     # ... Process specific humidity ...
     # ---------------------------------
@@ -660,7 +681,7 @@ if __name__ == "__main__":
       if filestat:
         if args.verbose:
           print(V.name, filestat)
-        write_f77(V, filestat, V.stprofiles, ncgrid, tggrid)
+        write_f77(V, filestat, V.stprofiles, ncgrid, tggrid, mode="status")
 
     # ... Some cleaning to free memory ...
     # ------------------------------------
