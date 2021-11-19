@@ -315,7 +315,7 @@ def load_netcdf(V, date_min, date_max, params):
   f = open_netcdf(ncfiles[0])
   # with Dataset(ncfiles[0], "r", format="NETCDF4") as f:
   ntim = f.dimensions["time"].size
-  miss_val = f.variables[ncvar].missing_value
+  # miss_val = f.variables[ncvar].missing_value
   # print(miss_val)
   # if V.name not in f.variables:
   #   ncvar = V.altname
@@ -353,6 +353,7 @@ def load_netcdf(V, date_min, date_max, params):
     ncvar = V.name
   var1 = f1.variables[ncvar][t1_i:t1_f, ...].copy()
   f1.close()
+
   var0 = var0 * V.coeff
   var1 = var1 * V.coeff
 
