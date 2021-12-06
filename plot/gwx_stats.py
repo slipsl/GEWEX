@@ -445,6 +445,7 @@ def read_f77(variable, filein, grid):
 #######################################################################
 
 if __name__ == "__main__":
+  run_deb = dt.datetime.now()
 
   # .. Initialization ..
   # ====================
@@ -496,13 +497,6 @@ if __name__ == "__main__":
   for f in sorted(params.dirout.glob(pattern)):
     V.pyvalues = read_f77(V, f, tggrid)
 
-    # cond = (V.pyvalues == 0.)
-    # nb_zeroes = np.count_nonzero(cond)
-    # cond = (V.pyvalues < 0.)
-    # nb_neg = np.count_nonzero(cond)
-    # cond = (V.pyvalues > 0.)
-    # nb_pos = np.count_nonzero(cond)
-
     (nb_zeroes, nb_neg, nb_pos) = (
       np.count_nonzero(cond)
         for cond in ((V.pyvalues == 0.), (V.pyvalues < 0.), (V.pyvalues > 0.))
@@ -519,15 +513,6 @@ if __name__ == "__main__":
       F"{nb_pos:8d}  "
     )
 
-    # print(f)
-    # print(V.pyvalues.shape)
-    # print(
-    #   F"min: {V.pyvalues.min()} ; "
-    #   F"max: {V.pyvalues.max()} ; "
-    #   F"mean: {V.pyvalues.mean()} ; "
-    #   F"std: {V.pyvalues.std()} ; "
-    # )
-
-  # print(nb_neg, nb_zeroes, nb_pos)
+  print(F"\n{72*'='}\nRun ended in {dt.datetime.now() - run_deb}")
 
   exit()
