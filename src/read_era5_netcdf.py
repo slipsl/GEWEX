@@ -514,7 +514,8 @@ if __name__ == "__main__":
     print(72*"=")
 
     # pp.pprint(f_in.dimensions)
-    print(F"{len(f_in.dimensions)} dimensions:")
+    ndim = len(f_in.dimensions)
+    print(F"{ndim} dimensions:")
     print(72*"-")
 
     for dname, dim in f_in.dimensions.items():
@@ -545,8 +546,10 @@ if __name__ == "__main__":
     print(72*"=")
     print("Variables:")
     print(72*"-")
-    for vname, var in f_in.variables.items():
 
+    nsamples = 10
+
+    for vname, var in f_in.variables.items():
       if vname not in f_in.dimensions:
       #   print(" ===> dimension <===")
       # else:
@@ -558,6 +561,61 @@ if __name__ == "__main__":
         for ncattr in var.ncattrs():
           print(F"  {ncattr} : {f_in.variables[vname].getncattr(ncattr)}")
         print(72*"-")
+
+
+        for i in range(nsamples):
+          print(F"i = {i}")
+          indices = tuple(random.randrange(plage) for plage in var.shape)
+
+          str_indices = ", ".join(
+            F"{str(i):>3s}" for i in indices
+          )
+
+          print(
+            F"{var.name}[{str_indices}] = "
+            F"{var[indices]}"
+          )
+
+        print(
+          F">{4%2}<  "
+          F">{11%3}<"
+        )
+
+        answer = input(
+          F"\nPrint basic statistics for {var.name}?\n"
+          F"  WARNING : can take a long time for profile variables\n"
+          F"(y/N) : "
+        ) or "N"
+        # print(F">{answer}<")
+
+        if answer.lower() == "y":
+          vmin = np.inf
+          vmax = -np.inf
+          vsum = 0
+          for t in range(var.shape[0]):
+            sub_var = var[t, ...]
+            # print(sub_var[...].min(), sub_var[...].max(), )
+            vmin = min(vmin, sub_var[...].min())
+            vmax = max(vmax, sub_var[...].max())
+            vsum = vsum + sub_var.sum()
+            # print(F" => {vmin} ; {vmax} ; {sub_var.mean()} ; {vsum}")
+
+            if not (t % (24 * 3)):
+              print(
+                F"Partial results:\n"
+                F"- min({var.name})  = {sub_var.min()}\n"
+                F"- max({var.name})  = {sub_var.max()}\n"
+                F"- mean({var.name}) = {sub_var.mean()}"
+              )
+
+          print(
+            F"min({var.name})  = {vmin}\n"
+            F"max({var.name})  = {vmax}\n"
+            F"mean({var.name}) = {vsum / var.size}"
+          )
+
+
+
 
         # print(var[...].min(), var[...].max(), )
 
@@ -573,6 +631,15 @@ if __name__ == "__main__":
     # for i in idx:
     #   print(i)
 
+
+    # for i in range(nsamples):
+    #   print(F"i = {i}")
+    #   for dname, dim in f_in.dimensions.items():
+    #   # for dim in range(ndim):
+    #   #   print(F"dim = {dim}")
+    #     print(
+    #       random.randrange(dim.size)
+    #     )
 
     pp.pprint(f_in.ncattrs)
 
