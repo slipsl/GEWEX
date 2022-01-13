@@ -65,17 +65,6 @@ def get_arguments():
     help="File version"
   )
 
-  # parser.add_argument(
-  #   "date_start", action="store",
-  #   type=lambda s: dt.datetime.strptime(s, "%Y%m%d"),
-  #   help="Start date: YYYYMMJJ"
-  # )
-  # parser.add_argument(
-  #   "date_end", action="store",
-  #   type=lambda s: dt.datetime.strptime(s, "%Y%m%d"),
-  #   help="End date: YYYYMMJJ"
-  # )
-
   parser.add_argument(
     "-v", "--verbose", action="store_true",
     help="Verbose mode"
@@ -124,6 +113,7 @@ def read_f77(variable, filein, grid):
 #######################################################################
 
 if __name__ == "__main__":
+  run_deb = dt.datetime.now()
 
   # .. Initialization ..
   # ====================
@@ -135,8 +125,6 @@ if __name__ == "__main__":
 
   # ... Constants ...
   # -----------------
-  # # fileversion = "SL04"
-  # fileversion = "05"
   fileversion = args.fileversion
 
   # ... Files and directories ...
@@ -194,5 +182,7 @@ if __name__ == "__main__":
       F"{nb_zeroes:8d}  "
       F"{nb_pos:8d}  "
     )
+
+  print(F"\n{72*'='}\nRun ended in {dt.datetime.now() - run_deb}")
 
   exit()
