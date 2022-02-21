@@ -342,6 +342,14 @@ def get_temp(params, T, P, ncgrid, tggrid):
         F"= {16*' '} /!\\   - {np.count_nonzero(cond):6d} elements         /!\\ {17*' '} =\n"
         F"{72*'='}"
       )
+    cond = (T.tgprofiles == 0.)
+    if np.any(cond):
+      print(
+        F"{72*'='}\n"
+        F"= {16*' '} /!\\     Temperatures = 0.     /!\\ {17*' '} =\n"
+        F"= {16*' '} /!\\     - {np.count_nonzero(cond):6d} elements       /!\\ {17*' '} =\n"
+        F"{72*'='}"
+      )
 
   T.stprofiles[...] = 10000
 
