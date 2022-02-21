@@ -74,7 +74,7 @@ def get_arguments():
   )
   parser.add_argument(
     "--status", action="store_true",
-    help="Produce status files"
+    help="Produce status files only"
   )
   parser.add_argument(
     "--noh2o", action="store_true",
@@ -448,11 +448,11 @@ def get_surftype(params, S):
 
 
 #----------------------------------------------------------------------
-def write_f77(V, filename, profiles, ncgrid, tggrid, mode="data"):
+def write_f77(V, filename, profiles, ncgrid, tggrid, ftype="data"):
 
   values = gwv.grid_nc2tg(profiles, ncgrid, tggrid)
 
-  if mode == "data":
+  if ftype == "data":
     dtype_in = V.dtype_in
     # dtype_out = 
   else:
@@ -682,14 +682,15 @@ if __name__ == "__main__":
     for V in V_list:
       fileout = V.pathout(params.dirout, date_curr)
       filestat = V.pathout(params.dirout, date_curr, ftype="status")
-      if fileout:
-        if args.verbose:
-          print(V.name, fileout)
-        write_f77(V, fileout, V.tgprofiles, ncgrid, tggrid)
+      if not (fg_status and V.name in ("P", "T")):
+        if fileout:
+          if args.verbose:
+            print(V.name, fileout)
+          write_f77(V, fileout, V.tgprofiles, ncgrid, tggrid)
       if filestat:
         if args.verbose:
           print(V.name, filestat)
-        write_f77(V, filestat, V.stprofiles, ncgrid, tggrid, mode="status")
+        write_f77(V, filestat, V.stprofiles, ncgrid, tggrid, ftype="status")
 
     # ... Some cleaning to free memory ...
     # ------------------------------------
