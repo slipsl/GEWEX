@@ -165,8 +165,10 @@ if __name__ == "__main__":
 
   if args.machine == "ciclad":
     queue = "weeks2"
+    walltime = "168:00:01"
   elif args.machine == "climserv":
     queue = "week"
+    walltime = "168:00:00"
 
   run_opt1 = []
   if args.verbose:
@@ -197,7 +199,7 @@ if __name__ == "__main__":
     F"#PBS -o {dirlog.joinpath(filebase)}.out",
     F"#PBS -e {dirlog.joinpath(filebase)}.err",
     F"#PBS -l mem=15gb,vmem=15gb",
-    F"#PBS -l walltime=168:00:01",
+    F"#PBS -l walltime={walltime}",
     F"",
     F"date",
     F"",
@@ -205,7 +207,9 @@ if __name__ == "__main__":
     F"module load python/3.6-anaconda50",
     F"source activate {conda_env}",
     F"",
+    F"pwd",
     F"cd $PBS_O_WORKDIR",
+    F"pwd",
     F"",
     (
       F"python {pgm} "
