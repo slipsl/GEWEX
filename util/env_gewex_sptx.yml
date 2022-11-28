@@ -1,0 +1,25 @@
+name: gewex_sptx
+# channels:
+#   - javascript
+dependencies:
+  # - python=3.6.3   # or 2.7
+  - python
+  - pip
+  - psutil
+  - pathlib
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - netCDF4
+  # - jpeg=9b
+  - jpeg
+  # - pprint
+  # - datetime
+  # - os
+
+# from cftime  num2date, date2num
+# from fortio  FortranFile
+
+
+

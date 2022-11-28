@@ -86,6 +86,11 @@ def get_arguments():
   )
 
   parser.add_argument(
+    "--dirout", action="store",
+    help="Define output directory"
+  )
+
+  parser.add_argument(
     "-v", "--verbose", action="store_true",
     help="Verbose mode"
   )
@@ -498,6 +503,9 @@ if __name__ == "__main__":
   instru = gwp.InstruParam(args.runtype)
   params = gwp.GewexParam(project_dir)
 
+  if args.dirout:
+    params.dirout = Path(args.dirout)
+
   if args.verbose:
     print(instru)
     print(params)
@@ -678,6 +686,7 @@ if __name__ == "__main__":
     # ... Write everything to F77 binary files ...
     # --------------------------------------------
     if args.verbose:
+      print(72*"~")
       print("Write files")
     for V in V_list:
       fileout = V.pathout(params.dirout, date_curr)
@@ -691,6 +700,8 @@ if __name__ == "__main__":
         if args.verbose:
           print(V.name, filestat)
         write_f77(V, filestat, V.stprofiles, ncgrid, tggrid, ftype="status")
+    if args.verbose:
+      print(72*"~")
 
     # ... Some cleaning to free memory ...
     # ------------------------------------

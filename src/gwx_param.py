@@ -88,21 +88,25 @@ class GewexParam(object):
     self.snowdepth_thresh = 1.e-3
 
     # print(platform.node())
+    print("host", socket.gethostname())
+
     # ipsl = ("ciclad", "camelot", "loholt")
-    climserv = ("climserv", "camelot", "loholt")
-    # if any(h in socket.gethostname() for h in ipsl):
-    if "ciclad" in socket.gethostname():
+    climserv = ("climserv", "camelot", "loholt", "spiritx")
+    ciclad = ("ciclad", "spirit")
+
+    if any(h in socket.gethostname() for h in climserv):
+      self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
+      # self.dirout = Path("/homedata/slipsl/GEWEX/ERA5_averages")
+      self.dirout = Path("/bdd/CIRS-LMD/ERA5_averages")
+    elif any(h in socket.gethostname() for h in ciclad):
       self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
       self.dirout = Path("/data/slipsl/GEWEX/ERA5_averages")
       # self.dirout = Path("/bdd/CIRS-LMD/ERA5_averages")
     # elif "climserv" in socket.gethostname():
-    elif any(h in socket.gethostname() for h in climserv):
-      self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
-      # self.dirout = Path("/homedata/slipsl/GEWEX/ERA5_averages")
-      self.dirout = Path("/bdd/CIRS-LMD/ERA5_averages")
     else:
       self.dirin = project_dir.joinpath("input")
       self.dirout = project_dir.joinpath("output")
+
     self.dirlog = project_dir.joinpath("run", "log")
 
 
