@@ -217,6 +217,13 @@ def lon2tutc(lon, date, node):
   delta_lon = 15.  # 15° per hour (360° for 24 hours)
   hours = (node - offset - lon / delta_lon)
 
+  # BEG modif 20221207
+  local = date + dt.timedelta(hours=hours)
+
+  return local.replace(year=date.year, month=date.month, day=date.day)
+  # return date + dt.timedelta(hours=hours)
+  # END modif 20221207
+
 
 #----------------------------------------------------------------------
 def utc2min(date):
