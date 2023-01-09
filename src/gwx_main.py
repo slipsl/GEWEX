@@ -89,6 +89,16 @@ def get_arguments():
     "--dirout", action="store",
     help="Define output directory"
   )
+  parser.add_argument(
+    "--version", action="store",
+    default="SL05",
+    help="File version, \ndefault value \"%(default)s\""
+  )
+  parser.add_argument(
+    "--offset", action="store",
+    type=float, default=0.5,
+    help="Offset, \ndefault value %(default)s"
+  )
 
   parser.add_argument(
     "-v", "--verbose", action="store_true",
@@ -202,11 +212,10 @@ def lon2tutc(lon, date, node):
   if lon > 180.:
     lon = lon - 360.
 
-  offset = 0.5
+  # offset = 0.5
+  offset = args.offset
   delta_lon = 15.  # 15° per hour (360° for 24 hours)
   hours = (node - offset - lon / delta_lon)
-
-  return date + dt.timedelta(hours=hours)
 
 
 #----------------------------------------------------------------------
@@ -494,7 +503,9 @@ if __name__ == "__main__":
 
   # ... Constants ...
   # -----------------
-  fileversion = "SL04"
+  # fileversion = "SL04"
+  # fileversion = "SL05"
+  fileversion = args.version
 
   # ... Files and directories ...
   # -----------------------------
