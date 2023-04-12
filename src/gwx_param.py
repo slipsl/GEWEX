@@ -43,13 +43,14 @@ class InstruParam(object):
   def __init__(self, runtype):
 
     runtypes = {
-      1: {"name": "AIRS_V6", "f_q": 1.e3, "tnode":  1.5, "ampm": "AM"},
-      2: {"name": "AIRS_V6", "f_q": 1.e3, "tnode": 13.5, "ampm": "PM"},
-      3: {"name": "IASI-A",  "f_q": 1.,   "tnode":  9.5, "ampm": "AM"},
-      4: {"name": "IASI-A",  "f_q": 1.,   "tnode": 21.5, "ampm": "PM"},
-      5: {"name": "IASI-B",  "f_q": 1.,   "tnode": 10. + 1./3., "ampm": "AM"},
-      6: {"name": "IASI-B",  "f_q": 1.,   "tnode": 22. + 1./3., "ampm": "PM"},
-      9: {"name": "TEST",    "f_q": 1.e3, "tnode":  0.0, "ampm": "AM"},
+      0: {"name": "all instru", "ampm": "AM/PM", "f_q": 1., "tnode": 0.0},
+      1: {"name": "AIRS_V6", "ampm": "AM", "f_q": 1.e3, "tnode":  1.5},
+      2: {"name": "AIRS_V6", "ampm": "PM", "f_q": 1.e3, "tnode": 13.5},
+      3: {"name": "IASI-A",  "ampm": "AM", "f_q": 1.,   "tnode":  9.5},
+      4: {"name": "IASI-A",  "ampm": "PM", "f_q": 1.,   "tnode": 21.5},
+      5: {"name": "IASI-B",  "ampm": "AM", "f_q": 1.,   "tnode": 10. + 1./3.},
+      6: {"name": "IASI-B",  "ampm": "PM", "f_q": 1.,   "tnode": 22. + 1./3.},
+      9: {"name": "TEST",    "ampm": "AM", "f_q": 1.e3, "tnode":  0.0},
       # 1: {"name": "AIRS_V6", "f_q": 1.e3, "f_p": 100., "tnode":  1.5, "ampm": "AM"},
       # 2: {"name": "AIRS_V6", "f_q": 1.e3, "f_p": 100., "tnode": 13.5, "ampm": "PM"},
       # 3: {"name": "IASI",    "f_q": 1.,   "f_p": 100., "tnode":  9.5, "ampm": "AM"},
@@ -97,6 +98,7 @@ class GewexParam(object):
     if any(h in socket.gethostname() for h in climserv):
       self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
       # self.dirout = Path("/homedata/slipsl/GEWEX/ERA5_averages")
+      # self.dirout = Path("/scratchx/slipsl/GEWEX/ERA5_averages")
       self.dirout = Path("/bdd/CIRS-LMD/ERA5_averages")
     elif any(h in socket.gethostname() for h in ciclad):
       self.dirin = Path("/bdd/ERA5/NETCDF/GLOBAL_025/hourly")
@@ -108,6 +110,8 @@ class GewexParam(object):
       self.dirout = project_dir.joinpath("output")
 
     self.dirlog = project_dir.joinpath("run", "log")
+    self.dirdata = project_dir.joinpath("data")
+    self.dirimg = project_dir.joinpath("img")
 
 
   # -------------------------------------------------------------------
@@ -116,4 +120,7 @@ class GewexParam(object):
       # F"File version: {self.fileversion}\n"
       F"Input dir:    {self.dirin}\n"
       F"Output dir:   {self.dirout}"
+      F"Data dir:     {self.dirdata}\n"
+      F"Log dir:      {self.dirlog}\n"
+      F"Img dir:      {self.dirimg}"
     )

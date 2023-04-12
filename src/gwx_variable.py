@@ -13,13 +13,13 @@
 # ========================
 # import psutil
 # import os
-# from pathlib import Path
-# import datetime as dt
+from pathlib import Path
+import datetime as dt
 # from cftime import num2date, date2num
 # import pprint
 
 
-# import numpy as np
+import numpy as np
 # import pandas as pd
 # # from fortio import FortranFile
 # from scipy.io import FortranFile
@@ -37,13 +37,13 @@
 # =====================================================================
 class VarNC(object):
   # -------------------------------------------------------------------
-  def __init__(self, name, mode, coeff, altname=None):
-    pass
+  def __init__(self, name, mode, coeff, altname=None, valid_range=None):
 
     self.name = name
     self.altname = altname
     self.mode = mode
     self.coeff = coeff
+    self.valid_range = valid_range
 
   # -------------------------------------------------------------------
   def __repr__(self):
@@ -54,7 +54,7 @@ class VarNC(object):
   # -------------------------------------------------------------------
   def init_datas(self, ncgrid):
 
-    import numpy as np
+    # import numpy as np
 
     if self.mode == "2d":
       ncshape = (ncgrid.nlat, ncgrid.nlon)
@@ -138,10 +138,116 @@ class VarNC(object):
     )
 
 
+  # -------------------------------------------------------------------
+  def check_range(self, i, w, t, date_min, nclev, dirdata, args):
+
+    import numpy as np
+    import datetime as dt
+
+    fg_print = i == 513  # and j == 456  # and args.verbose
+
+    t_min, t_max = t
+    w_min, w_max = w
+
+    # if fg_print:
+    #   print(self.ncdata.ndim)
+    #   if self.ncdata.ndim == 4:
+    #     j = 456
+    #     for a, b in zip(self.ncdata[t_min, ..., j, i], self.ncdata[t_max, ..., j, i]):
+    #       print(F"{a:8.5f}, {b:8.5f}")
+
+    if self.valid_range:
+      vmin, vmax = (x * self.coeff for x in self.valid_range)
+
+      cond = np.logical_or(
+        np.logical_or(
+          self.ncdata[t_min, ..., i] > vmax,
+          self.ncdata[t_min, ..., i] < vmin,
+        ),
+        np.logical_or(
+          self.ncdata[t_max, ..., i] > vmax,
+          self.ncdata[t_max, ..., i] < vmin,
+        ),
+      )
+      if np.any(cond):
+        filename = Path(
+          F"Invalid_{self.name}_r{args.runtype}_"
+          F"{args.date_start:%Y%m%d}_{args.date_end:%Y%m%d}_"
+          F"{args.version}.dat"
+        )
+        filepath = dirdata.joinpath(filename)
+
+        if filepath.is_file():
+          write_header = False
+        else:
+          write_header = True
+
+        # print(
+        #   filepath,
+        #   filepath.is_file()
+        # )
+
+        print(vmin, vmax)
+        print(t_min, t_max)
+        arg_array = np.argwhere(cond).copy()
+        arg_array = arg_array[np.lexsort(
+          (arg_array[:, -1], arg_array[:, -2])
+        )]
+
+        with open(filepath, "a") as f:
+          if write_header:
+            f.write(
+              # F"#    i   j   l t1 t2  "
+              F"# {'i':>4} {'j':>3} {'l':>3} t1 t2  "
+              F"{' lon':7} {'lat':6} {' lev':7} "
+              F"{'date1':12} {'date2':12} "
+              F"{'weight1':7} {'weight2':7} "
+              F"{' val1':12} {' val2':12} "
+              F"{' vmin':9} {' vmax':9} "
+              F"\n# {130*'='}\n"
+            )
+
+          for idx in arg_array:
+            # print(
+            #   idx,
+            #   # ncdata[tuple(idx)]
+            # )
+            lon = 0.25 * i
+            lat = 90 - (0.25 * idx[-1])
+            tstep = 1
+            time_min, time_max = (
+              date_min + dt.timedelta(hours=int(h)) for h in (t_min, t_max)
+            )
+            f.write(
+              F"  {i:4} {idx[-1]:3} {idx[-2]:3} "
+              F"{t_min:2} {t_max:2}  "
+              F"{lon:7.2f} {lat:6.2f} "
+              F"{nclev[idx[-2]]:7.2f} "
+              F"{time_min:%Y%m%d-%Hh} "
+              F"{time_max:%Y%m%d-%Hh} "
+              F"{w_min:7.5f} {w_max:7.5f} "
+              F"{self.ncdata[t_min, idx[0], idx[1], i]:12.5e} "
+              F"{self.ncdata[t_max, idx[0], idx[1], i]:12.5e} "
+              F"{vmin:9.2e} {vmax:9.2e} "
+              F"\n"
+            )
+            # print(
+            #   F"{self.name:3} ; "
+            #   F"lon[{i:04}] = {lon:7.2f} ; "
+            #   F"lat[{idx[1]:03}] = {lat:6.2f} ; "
+            #   F"lev[{idx[0]:03}] ; "
+            #   # F"time[{t_min:02}] = {time:%Y%m%d-%Hh} ; "
+            #   F"val[{time_min:%Y%m%d-%Hh}] = "
+            #   F"{self.ncdata[t_min, idx[0], idx[1], i]:11.5e}"
+            #   F"val[{time_max:%Y%m%d-%Hh}] = "
+            #   F"{self.ncdata[t_max, idx[0], idx[1], i]:11.5e}"
+            # )
+
+
 class VarOut(object):
   # -------------------------------------------------------------------
   def __init__(self, name, instru, fileversion):
-    import numpy as np
+    # import numpy as np
 
     variables = {
       "P": {
@@ -152,7 +258,7 @@ class VarOut(object):
         "dtype_out": np.float32,
         "extralev": 0,
         "ncvars": {
-          "sp": VarNC("sp", "2d", 1.e-2),
+          "sp": VarNC("sp", "2d", 1.e-2, valid_range=(0., 110.e3, )),
         },
         "statfile": None,
       },
@@ -164,7 +270,7 @@ class VarOut(object):
         "dtype_out": np.float32,
         "extralev": 0,
         "ncvars": {
-          "q": VarNC("q", "3d", instru.f_q),
+          "q": VarNC("q", "3d", instru.f_q, valid_range=(0., 50.e-3, )),
         },
         "statfile": None,
       },
@@ -176,8 +282,8 @@ class VarOut(object):
         "dtype_out": np.float32,
         "extralev": 2,
         "ncvars": {
-          "ta": VarNC("ta", "3d", 1.),
-          "skt": VarNC("skt", "2d", 1.),
+          "ta": VarNC("ta", "3d", 1., valid_range=(150., 400., )),
+          "skt": VarNC("skt", "2d", 1., valid_range=(150., 400., )),
         },
         "statfile": "L2_status",
       },
@@ -189,7 +295,7 @@ class VarOut(object):
         "dtype_out": np.int32,
         "extralev": 0,
         "ncvars": {
-          "ci": VarNC("ci", "2d", 1., "siconc"),
+          "ci": VarNC("ci", "2d", 1., altname="siconc"),
           "lsm": VarNC("lsm", "2d", 1.),
           "sd": VarNC("sd", "2d", 1.),
         },
@@ -224,7 +330,7 @@ class VarOut(object):
   # -------------------------------------------------------------------
   def init_datas(self, ncgrid, tggrid):
 
-    import numpy as np
+    # import numpy as np
 
     if self.mode == "2d":
       tgshape = (tggrid.nlat, tggrid.nlon)
@@ -331,7 +437,7 @@ class Variable(object):
   # -------------------------------------------------------------------
   def __init__(self, name, instru, fileversion):
 
-    import numpy as np
+    # import numpy as np
 
     self.name = name
 
@@ -439,7 +545,7 @@ class Variable(object):
   # -------------------------------------------------------------------
   def init_datas(self, ncgrid, tggrid):
 
-    import numpy as np
+    # import numpy as np
 
     if self.mode == "2d":
       ncshape = tgshape = (ncgrid.nlat, ncgrid.nlon)
@@ -569,7 +675,7 @@ class Variable(object):
   # -------------------------------------------------------------------
   def get_interp(self, i, j, ncgrid, tggrid, P0, V0):
 
-    import numpy as np
+    # import numpy as np
     from scipy.interpolate import interp1d
 
     X = ncgrid.lev
@@ -617,7 +723,7 @@ class TGGrid(object):
   # -------------------------------------------------------------------
   def load(self):
 
-    import numpy as np
+    # import numpy as np
 
     self.loaded = True
 
@@ -657,7 +763,7 @@ class TGGrid(object):
 # =                            Functions                              =
 # =====================================================================
 def grid_nc2tg(var_in, ncgrid, tggrid):
-  import numpy as np
+  # import numpy as np
 
   var_out = var_in
 

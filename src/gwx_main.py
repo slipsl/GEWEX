@@ -16,6 +16,7 @@ from pathlib import Path
 import datetime as dt
 import cftime as cf  # num2date, date2num
 import pprint
+import itertools
 
 import numpy as np
 from scipy.io import FortranFile
@@ -91,12 +92,12 @@ def get_arguments():
   )
   parser.add_argument(
     "--version", action="store",
-    default="SL05",
+    default="SL07",
     help="File version, \ndefault value \"%(default)s\""
   )
   parser.add_argument(
     "--offset", action="store",
-    type=float, default=0.5,
+    type=float, default=0.,
     help="Offset, \ndefault value %(default)s"
   )
 
@@ -314,7 +315,9 @@ def interp(X, Y):
   return interp1d(
     x=X,
     y=Y,
-    fill_value="extrapolate",
+    kind="linear",
+    bounds_error=False,
+    # fill_value="extrapolate",
   )
 
 
@@ -329,8 +332,8 @@ def get_pressure(params, P):
 #----------------------------------------------------------------------
 def get_temp(params, T, P, ncgrid, tggrid):
 
-  import numpy as np
-  from scipy.interpolate import interp1d
+  # import numpy as np
+  # from scipy.interpolate import interp1d
 
   if fg_temp:
     for i in range(ncgrid.nlon):
@@ -338,15 +341,23 @@ def get_temp(params, T, P, ncgrid, tggrid):
         fg_print = not (i % 60) and not (j % 60) and args.verbose
         if fg_print:
           print(
+            F"Temp ; "
             F"lon = {ncgrid.lon[i]} ; "
             F"lat = {ncgrid.lat[j]}"
           )
 
-        X = ncgrid.lev
-        Y = T.ncvars["ta"].ncprofiles[..., j, i]
+        # X = ncgrid.lev
+        # Y = T.ncvars["ta"].ncprofiles[..., j, i]
+        cond_nc = T.ncvars["ta"].ncprofiles[..., j, i] >= 0.
+        X = ncgrid.lev[cond_nc]
+        Y = T.ncvars["ta"].ncprofiles[cond_nc, j, i]
 
         cond = np.full(T.tgprofiles.shape[0], False)
-        cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
+        # cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
+        cond[:tggrid.nlev] = np.logical_and(
+          tggrid.lev <= P.tgprofiles[j, i],
+          tggrid.lev <= ncgrid.lev.max()
+        )
 
         fn = interp(X, Y)
 
@@ -380,7 +391,7 @@ def get_temp(params, T, P, ncgrid, tggrid):
 #----------------------------------------------------------------------
 def get_h2o(params, Q, P, ncgrid, tggrid):
 
-  import numpy as np
+  # import numpy as np
   # from scipy.interpolate import interp1d
 
   for i in range(ncgrid.nlon):
@@ -388,22 +399,36 @@ def get_h2o(params, Q, P, ncgrid, tggrid):
       fg_print = not (i % 60) and not (j % 60) and args.verbose
       if fg_print:
         print(
+          F"H2O ; "
           F"lon = {ncgrid.lon[i]} ; "
           F"lat = {ncgrid.lat[j]}"
         )
 
-      X = ncgrid.lev
-      Y = Q.ncvars["q"].ncprofiles[..., j, i]
+      # X = ncgrid.lev
+      # Y = Q.ncvars["q"].ncprofiles[..., j, i]
+      cond_nc = Q.ncvars["q"].ncprofiles[..., j, i] >= 0.
+      X = ncgrid.lev[cond_nc]
+      Y = Q.ncvars["q"].ncprofiles[cond_nc, j, i]
 
       cond = np.full(Q.tgprofiles.shape[0], False)
-      cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
+      # cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
+      cond[:tggrid.nlev] = np.logical_and(
+        tggrid.lev <= P.tgprofiles[j, i],
+        tggrid.lev <= ncgrid.lev.max()
+      )
 
       fn = interp(X, Y)
 
       Q.tgprofiles[cond, j, i] = fn(tggrid.lev[cond[:tggrid.nlev]])
 
-      z = np.squeeze(np.argwhere(cond)[-1])
-      Q0 = Q.tgprofiles[z, j, i]
+      # z = np.squeeze(np.argwhere(cond)[-1])
+      cond_z = np.logical_and(
+        ncgrid.lev <= P.tgprofiles[j, i],
+        Q.ncvars["q"].ncprofiles[..., j, i] >= 0.
+      )
+      z = np.squeeze(np.argwhere(cond_z)[-1])
+      # Q0 = Q.tgprofiles[z, j, i]
+      Q0 = Q.ncvars["q"].ncprofiles[z, j, i]
       Q.tgprofiles[~cond, j, i] = Q0
 
   # print(
@@ -420,15 +445,39 @@ def get_h2o(params, Q, P, ncgrid, tggrid):
   #   Q.tgprofiles[..., j, i],
   # )
 
+  print("cond fin")
   cond = (Q.tgprofiles < 0.)
   if np.any(cond):
-    Q.tgprofiles[cond] = 0.
     print(
       F"{72*'='}\n"
       F"= {15*' '} /!\\   Negative spec. humidity   /!\\ {16*' '} =\n"
       F"= {15*' '} /!\\   - {np.count_nonzero(cond):6d} elements         /!\\ {16*' '} =\n"
       F"{72*'='}"
     )
+    with open(params.dirlog.joinpath("Negative_H2O.dat"), "a") as f:
+      for (k, j, i) in np.argwhere(Q.tgprofiles < 0.):
+        f.write(
+          F"{72*'='}\n"
+          F"date = {date_curr:%Y-%m-%d} ; "
+          F"lon = {ncgrid.lon[i]:7.2f}degE ; "
+          F"lat = {ncgrid.lat[j]:7.2f}degN ; "
+          F"lev = {tggrid.lev[k]:7.2f}hPa ; "
+          F"Psurf = {P.tgprofiles[j, i]:7.2f}hPa\n"
+          F"{37*'-'}\n"
+          F" nc_lev    nc_Q     tg_lev    tg_Q\n"
+          F"{37*'-'}\n"
+        )
+        for nc_l, nc_q, tg_l, tg_q in itertools.zip_longest(
+          ncgrid.lev,
+          Q.ncvars["q"].ncprofiles[..., j, i],
+          tggrid.lev,
+          Q.tgprofiles[..., j, i],
+          fillvalue=np.nan
+        ):
+          f.write(
+            F"{nc_l:7.2f} {nc_q:10.5f} {tg_l:7.2f} {tg_q:10.5f}\n"
+          )
+    Q.tgprofiles[cond] = 0.
 
   return
 
@@ -528,7 +577,8 @@ if __name__ == "__main__":
     print(instru)
     print(params)
 
-  fg_status = args.status
+  # fg_status = args.status
+  fg_status = False
   fg_temp = not args.notemp
   fg_h2o  = not args.noh2o
   fg_surf = not args.nosurf
@@ -666,10 +716,20 @@ if __name__ == "__main__":
         print("Weighted nc mean")
       for V in V_list:
         for Vnc in V.ncvars.values():
+          Vnc.check_range(
+            i, weight[i], time_indices[i], 
+            date_min, ncgrid.lev, 
+            params.dirdata, args
+          )
           Vnc.get_wght_mean(i, weight[i], time_indices[i])
 
     # ... Process surface pressure ...
     # --------------------------------
+    if args.verbose:
+      print(
+        F"{72*'-'}\n"
+        F"Process surface pressure"
+      )
     get_pressure(params, P)
     if args.verbose:
       P.print_values()
@@ -677,6 +737,11 @@ if __name__ == "__main__":
     # ... Process temperature ...
     # ---------------------------
     if fg_temp or fg_status:
+      if args.verbose:
+        print(
+          F"{72*'-'}\n"
+          F"Process temperature"
+        )
       get_temp(params, T, P, ncgrid, tggrid)
       if args.verbose:
         T.print_values()
@@ -690,6 +755,11 @@ if __name__ == "__main__":
     # ... Process specific humidity ...
     # ---------------------------------
     if fg_h2o:
+      if args.verbose:
+        print(
+          F"{72*'-'}\n"
+          F"Process specific humidity"
+        )
       get_h2o(params, Q, P, ncgrid, tggrid)
       if args.verbose:
         Q.print_values()
@@ -697,6 +767,11 @@ if __name__ == "__main__":
     # ... Process surface type ...
     # ----------------------------
     if fg_surf:
+      if args.verbose:
+        print(
+          F"{72*'-'}\n"
+          F"Process surface type"
+        )
       get_surftype(params, S)
       if args.verbose:
         S.print_values()
@@ -714,10 +789,10 @@ if __name__ == "__main__":
           if args.verbose:
             print(V.name, fileout)
           write_f77(V, fileout, V.tgprofiles, ncgrid, tggrid)
-      if filestat:
-        if args.verbose:
-          print(V.name, filestat)
-        write_f77(V, filestat, V.stprofiles, ncgrid, tggrid, ftype="status")
+      # if filestat:
+      #   if args.verbose:
+      #     print(V.name, filestat)
+      #   write_f77(V, filestat, V.stprofiles, ncgrid, tggrid, ftype="status")
     if args.verbose:
       print(72*"~")
 
