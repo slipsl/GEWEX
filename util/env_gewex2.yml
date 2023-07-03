@@ -11,6 +11,7 @@ dependencies:
   - matplotlib
   - pandas
   - netCDF4
+  - jpeg=9b
   # - pprint
   # - datetime
   # - os
