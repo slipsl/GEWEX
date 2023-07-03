@@ -119,7 +119,7 @@ class GewexParam(object):
     return (
       # F"File version: {self.fileversion}\n"
       F"Input dir:    {self.dirin}\n"
-      F"Output dir:   {self.dirout}"
+      F"Output dir:   {self.dirout}\n"
       F"Data dir:     {self.dirdata}\n"
       F"Log dir:      {self.dirlog}\n"
       F"Img dir:      {self.dirimg}"
