@@ -12,6 +12,7 @@
 # Standard library imports
 # ========================
 import psutil
+import shutil
 from pathlib import Path
 import datetime as dt
 import cftime as cf  # num2date, date2num
@@ -92,7 +93,7 @@ def get_arguments():
   )
   parser.add_argument(
     "--version", action="store",
-    default="SL07",
+    default="SL09",
     help="File version, \ndefault value \"%(default)s\""
   )
   parser.add_argument(
@@ -332,9 +333,6 @@ def get_pressure(params, P):
 #----------------------------------------------------------------------
 def get_temp(params, T, P, ncgrid, tggrid):
 
-  # import numpy as np
-  # from scipy.interpolate import interp1d
-
   if fg_temp:
     for i in range(ncgrid.nlon):
       for j in range(ncgrid.nlat):
@@ -346,12 +344,17 @@ def get_temp(params, T, P, ncgrid, tggrid):
             F"lat = {ncgrid.lat[j]}"
           )
 
+        # Skip negative temperatures in interpolation
+        # Just a precaution, none have been detected so far
+        # -------------------------------------------------
         # X = ncgrid.lev
         # Y = T.ncvars["ta"].ncprofiles[..., j, i]
         cond_nc = T.ncvars["ta"].ncprofiles[..., j, i] >= 0.
         X = ncgrid.lev[cond_nc]
         Y = T.ncvars["ta"].ncprofiles[cond_nc, j, i]
 
+        # Interpolate only above the surface
+        # -------------------------------------------------
         cond = np.full(T.tgprofiles.shape[0], False)
         # cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
         cond[:tggrid.nlev] = np.logical_and(
@@ -360,11 +363,33 @@ def get_temp(params, T, P, ncgrid, tggrid):
         )
 
         fn = interp(X, Y)
-
         T.tgprofiles[cond, j, i] = fn(tggrid.lev[cond[:tggrid.nlev]])
 
-        T0 = T.ncvars["skt"].ncprofiles[j, i]
+        # T0 = T.ncvars["skt"].ncprofiles[j, i]
+        # T.tgprofiles[~cond, j, i] = T0
+
+        # Find which value to use to complete the profile
+        # Plev(tg) = 1013 hPa and Plev(tg) < Psurf(nc)
+        # -------------------------------------------------
+        if args.version == "SL08":
+          cond_z = np.logical_and(
+            ncgrid.lev <= P.tgprofiles[j, i],
+            T.ncvars["ta"].ncprofiles[..., j, i] >= 0.
+          )
+          z = np.squeeze(np.argwhere(cond_z)[-1])
+          T0 = T.ncvars["ta"].ncprofiles[z, j, i]
+        elif args.version == "SL09":
+          T0 = T.ncvars["t2m"].ncprofiles[j, i]
+        else:
+          T0 = T.ncvars["skt"].ncprofiles[j, i]
         T.tgprofiles[~cond, j, i] = T0
+
+        if args.version in ["SL08", "SL09"]:
+          # Plev + 1 = skin temperature
+          T.tgprofiles[-2, j, i] = T.ncvars["skt"].ncprofiles[j, i]
+          
+          # Plev + 2 = two meter temperature
+          T.tgprofiles[-1, j, i] = T.ncvars["t2m"].ncprofiles[j, i]
 
     cond = (T.tgprofiles < 0.)
     if np.any(cond):
@@ -391,9 +416,6 @@ def get_temp(params, T, P, ncgrid, tggrid):
 #----------------------------------------------------------------------
 def get_h2o(params, Q, P, ncgrid, tggrid):
 
-  # import numpy as np
-  # from scipy.interpolate import interp1d
-
   for i in range(ncgrid.nlon):
     for j in range(ncgrid.nlat):
       fg_print = not (i % 60) and not (j % 60) and args.verbose
@@ -404,12 +426,16 @@ def get_h2o(params, Q, P, ncgrid, tggrid):
           F"lat = {ncgrid.lat[j]}"
         )
 
+      # Skip negative values in interpolation
+      # -------------------------------------------------
       # X = ncgrid.lev
       # Y = Q.ncvars["q"].ncprofiles[..., j, i]
       cond_nc = Q.ncvars["q"].ncprofiles[..., j, i] >= 0.
       X = ncgrid.lev[cond_nc]
       Y = Q.ncvars["q"].ncprofiles[cond_nc, j, i]
 
+      # Interpolate only above the surface
+      # -------------------------------------------------
       cond = np.full(Q.tgprofiles.shape[0], False)
       # cond[:tggrid.nlev] = tggrid.lev <= P.tgprofiles[j, i]
       cond[:tggrid.nlev] = np.logical_and(
@@ -418,9 +444,11 @@ def get_h2o(params, Q, P, ncgrid, tggrid):
       )
 
       fn = interp(X, Y)
-
       Q.tgprofiles[cond, j, i] = fn(tggrid.lev[cond[:tggrid.nlev]])
 
+      # Find which value to use to complete the profile
+      # Plev(tg) = 1013 hPa and Plev(tg) < Psurf(nc)
+      # -------------------------------------------------
       # z = np.squeeze(np.argwhere(cond)[-1])
       cond_z = np.logical_and(
         ncgrid.lev <= P.tgprofiles[j, i],
@@ -576,6 +604,14 @@ if __name__ == "__main__":
   if args.verbose:
     print(instru)
     print(params)
+
+    # total, used, free = shutil.disk_usage(params.dirout)
+    # print(
+    #   F"{params.dirout}:\n"
+    #   F"- Total: {total // (2**40)} TB\n"
+    #   F"- Used: {used // (2**40)} TB\n"
+    #   F"- Free: {free // (2**40)} TB"
+    # )
 
   # fg_status = args.status
   fg_status = False

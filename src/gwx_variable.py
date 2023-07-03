@@ -284,6 +284,7 @@ class VarOut(object):
         "ncvars": {
           "ta": VarNC("ta", "3d", 1., valid_range=(150., 400., )),
           "skt": VarNC("skt", "2d", 1., valid_range=(150., 400., )),
+          "t2m": VarNC("t2m", "2d", 1., valid_range=(150., 400., )),
         },
         "statfile": "L2_status",
       },
@@ -452,6 +453,14 @@ class Variable(object):
     if name == "Tsurf":
       self.longname = "Skin temperature"
       self.ncvar = "skt"
+      self.ncvar_alt = None
+      self.mode = "2d"
+      self.coeff = 1.
+      self.str = None
+      self.units = "K"
+    if name == "T2m":
+      self.longname = "Two metre temperature"
+      self.ncvar = "t2m"
       self.ncvar_alt = None
       self.mode = "2d"
       self.coeff = 1.
